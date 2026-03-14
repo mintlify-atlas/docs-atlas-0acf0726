@@ -1,0 +1,260 @@
+---
+title: 'Generate Learning Plan'
+api: 'POST /api/ia/generate-plan'
+description: 'Generate personalized learning plans using Groq LLM based on student soft skills and progress'
+---
+
+## Overview
+
+Generates AI-powered personalized learning plans for students. Supports two plan types:
+- **Interpretive**: Initial plan based on soft skills diagnostic and module structure
+- **Analytical**: Adaptive plan that incorporates weekly performance data and struggling topics
+
+The endpoint uses Groq's `llama-3.3-70b-versatile` model to generate customized weekly learning paths.
+
+## Authentication
+
+Requires authentication with `coder` role.
+
+```http
+Authorization: Bearer <token>
+```
+
+## Request Body
+
+<ParamField body="coder_id" type="integer" required>
+  The unique identifier of the student
+</ParamField>
+
+<ParamField body="module_id" type="integer" required>
+  The module for which to generate the plan
+</ParamField>
+
+<ParamField body="plan_type" type="string" default="interpretive">
+  Type of plan to generate. Options:
+  - `interpretive`: Initial plan based on soft skills
+  - `analytical`: Performance-based adaptive plan
+</ParamField>
+
+<ParamField body="current_week" type="integer" default="1">
+  Current week number (required for analytical plans)
+</ParamField>
+
+<ParamField body="average_score" type="number" default="0.0">
+  Student's average score (required for analytical plans)
+</ParamField>
+
+<ParamField body="struggling_topics" type="array">
+  List of topic names where student is struggling (for analytical plans)
+  ```json
+  ["Variables", "Functions", "Loops"]
+  ```
+</ParamField>
+
+<ParamField body="weeks_completed" type="array">
+  Historical weekly performance data (for analytical plans)
+  ```json
+  [
+    {
+      "week": 1,
+      "average_score": 85.5,
+      "struggling_topics": ["Variables"]
+    }
+  ]
+  ```
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the plan was generated successfully
+</ResponseField>
+
+<ResponseField name="plan_id" type="integer">
+  Unique identifier for the generated plan
+</ResponseField>
+
+<ResponseField name="plan" type="object">
+  The generated learning plan
+  
+  <ResponseField name="plan.plan_type" type="string">
+    Type of plan: `interpretive` or `analytical`
+  </ResponseField>
+  
+  <ResponseField name="plan.status" type="string">
+    Generation status: `ok` or `fallback`
+  </ResponseField>
+  
+  <ResponseField name="plan.targeted_soft_skill" type="string">
+    Primary soft skill being developed (e.g., `autonomy`, `problem_solving`)
+  </ResponseField>
+  
+  <ResponseField name="plan.learning_style_applied" type="string">
+    Student's learning style (e.g., `visual`, `kinesthetic`, `mixed`)
+  </ResponseField>
+  
+  <ResponseField name="plan.summary" type="string">
+    Natural language summary of the plan
+  </ResponseField>
+  
+  <ResponseField name="plan.weeks" type="array">
+    Array of weekly objectives and activities
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  Generation metadata
+  
+  <ResponseField name="metadata.plan_type" type="string">
+    Type of plan generated
+  </ResponseField>
+  
+  <ResponseField name="metadata.coder_id" type="integer">
+    Student ID
+  </ResponseField>
+  
+  <ResponseField name="metadata.module_id" type="integer">
+    Module ID
+  </ResponseField>
+  
+  <ResponseField name="metadata.module_name" type="string">
+    Module name
+  </ResponseField>
+  
+  <ResponseField name="metadata.current_week" type="integer">
+    Current week number
+  </ResponseField>
+  
+  <ResponseField name="metadata.execution_ms" type="integer">
+    Generation time in milliseconds
+  </ResponseField>
+</ResponseField>
+
+## AI Model Configuration
+
+**Provider**: Groq  
+**Model**: `llama-3.3-70b-versatile`  
+**Temperature**: 0.7  
+**Max Tokens**: 8192  
+**Response Format**: JSON object
+
+## Examples
+
+<CodeGroup>
+
+```bash Interpretive Plan
+curl -X POST https://api.kairo.com/api/ia/generate-plan \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "coder_id": 123,
+    "module_id": 1,
+    "plan_type": "interpretive"
+  }'
+```
+
+```bash Analytical Plan
+curl -X POST https://api.kairo.com/api/ia/generate-plan \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "coder_id": 123,
+    "module_id": 1,
+    "plan_type": "analytical",
+    "current_week": 3,
+    "average_score": 78.5,
+    "struggling_topics": ["Loops", "Functions"],
+    "weeks_completed": [
+      {
+        "week": 1,
+        "average_score": 85.0,
+        "struggling_topics": ["Variables"]
+      },
+      {
+        "week": 2,
+        "average_score": 72.0,
+        "struggling_topics": ["Conditionals", "Loops"]
+      }
+    ]
+  }'
+```
+
+```json Response
+{
+  "success": true,
+  "plan_id": 456,
+  "plan": {
+    "plan_type": "interpretive",
+    "status": "ok",
+    "targeted_soft_skill": "autonomy",
+    "learning_style_applied": "visual",
+    "summary": "Plan personalizado enfocado en desarrollar autonomía mediante proyectos prácticos y visualización de conceptos.",
+    "weeks": [
+      {
+        "week": 1,
+        "objectives": ["Comprender variables y tipos de datos"],
+        "activities": ["Ejercicios interactivos con diagramas"]
+      }
+    ]
+  },
+  "metadata": {
+    "plan_type": "interpretive",
+    "coder_id": 123,
+    "module_id": 1,
+    "module_name": "Fundamentos de Programación",
+    "current_week": 1,
+    "execution_ms": 2340
+  }
+}
+```
+
+</CodeGroup>
+
+## Workflow
+
+1. **Validation**: Validates `plan_type` is either `interpretive` or `analytical`
+2. **Data Retrieval**: Fetches soft skills diagnostic, module details, and weeks from Supabase
+3. **Deactivation**: Deactivates any existing active plan for the student
+4. **Context Building**: Constructs context with student profile and performance data
+5. **AI Generation**: Calls Groq LLM with appropriate prompt based on plan type
+6. **Persistence**: Saves plan and logs generation metadata
+
+## Error Handling
+
+<ResponseField name="error" type="object">
+  Error details when generation fails
+  
+  <ResponseField name="status_code" type="integer">
+    HTTP status code
+  </ResponseField>
+  
+  <ResponseField name="detail" type="string">
+    Error message
+  </ResponseField>
+</ResponseField>
+
+**Common Errors**:
+- `400`: Invalid `plan_type` or missing soft skills diagnostic
+- `404`: Module not found
+- `502`: AI service unavailable
+- `500`: Internal server error
+
+## Fallback Behavior
+
+If Groq API fails, the system returns a safe fallback plan:
+
+```json
+{
+  "plan_type": "interpretive",
+  "status": "fallback",
+  "targeted_soft_skill": "autonomy",
+  "learning_style_applied": "mixed",
+  "summary": "Plan no disponible temporalmente: [reason]",
+  "weeks": []
+}
+```
+
+## Performance
+
+Typical generation time: **1.5-3 seconds**  
+Logged in `ai_generation_log` table with `execution_time_ms`

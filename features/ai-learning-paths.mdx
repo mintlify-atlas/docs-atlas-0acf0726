@@ -1,0 +1,400 @@
+---
+title: 'AI Learning Paths'
+description: 'Personalized learning plans generated using Groq LLM with adaptive path generation based on learner profiles'
+icon: 'brain-circuit'
+---
+
+## Overview
+
+Kairo uses AI-powered learning path generation to create personalized study plans tailored to each student's unique profile. The system analyzes soft skills, learning styles, and performance data to generate contextual recommendations.
+
+<Note>
+  Learning paths are generated using **Groq's Llama 3.3 70B** model, providing high-quality educational planning with minimal latency.
+</Note>
+
+## How It Works
+
+<Steps>
+  <Step title="Student Completes Diagnostic">
+    The onboarding process collects data through VARK, ILS (Index of Learning Styles), and Kolb assessments to build a comprehensive learner profile.
+    
+    **Endpoint:** `POST /api/diagnostics`
+    
+    ```javascript
+    {
+      "answers": [
+        { "questionId": 1, "optionId": "a", "score": "V" },
+        { "questionId": 2, "optionId": "b", "score": "ACT" }
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Soft Skills Derivation">
+    The system derives five core soft skill scores from the diagnostic answers:
+    
+    - **Autonomy** ← REF (reflective) + AC (abstract conceptualization) + RO (reflective observation)
+    - **Time Management** ← SEQ (sequential) + AE (active experimentation) + SNS (sensing)
+    - **Problem Solving** ← GLO (global) + AC + INT (intuitive)
+    - **Communication** ← ACT (active) + CE (concrete experience) + VRB (verbal)
+    - **Teamwork** ← ACT + CE + SNS
+    
+    Each skill is scored 1-5 based on psychological learning patterns.
+    
+    **Implementation:** `backend-node/src/controllers/diagnosticControllers.js:121-131`
+  </Step>
+
+  <Step title="AI Plan Generation">
+    Two types of plans are generated:
+    
+    ### Interpretive Plans
+    Generated after onboarding completion. Analyzes soft skills and module structure to create an initial personalized roadmap.
+    
+    ### Analytical Plans
+    Generated weekly based on performance data, struggling topics, and progress metrics. Adapts to the student's evolving needs.
+    
+    **Endpoint:** `POST /generate-plan` (Python microservice)
+  </Step>
+
+  <Step title="Contextual Prompt Building">
+    The AI receives rich context including:
+    - Student's soft skill profile
+    - Learning style (visual, auditory, reading, kinesthetic, mixed)
+    - Current module and week data
+    - Struggling topics (for analytical plans)
+    - Historical performance data
+    
+    **Implementation:** `backend-python/app/services/prompt_builder.py`
+  </Step>
+
+  <Step title="Structured Plan Delivery">
+    The LLM returns a JSON-structured plan with:
+    - Targeted soft skill to develop
+    - Learning style adaptation strategies
+    - Week-by-week activities and resources
+    - Personalized recommendations
+    
+    Plans are stored in `complementary_plans` table with versioning support.
+  </Step>
+</Steps>
+
+## API Reference
+
+### Generate Learning Plan
+
+<CodeGroup>
+```javascript Request
+POST /generate-plan
+Content-Type: application/json
+
+{
+  "coder_id": 123,
+  "module_id": 4,
+  "plan_type": "interpretive",
+  "current_week": 1
+}
+```
+
+```javascript Analytical Plan Request
+POST /generate-plan
+
+{
+  "coder_id": 123,
+  "module_id": 4,
+  "plan_type": "analytical",
+  "current_week": 3,
+  "average_score": 72.5,
+  "struggling_topics": ["SQL Joins", "Normalization"],
+  "weeks_completed": [
+    { "week": 1, "average_score": 85, "struggling_topics": [] },
+    { "week": 2, "average_score": 68, "struggling_topics": ["ERD Design"] }
+  ]
+}
+```
+
+```javascript Response
+{
+  "success": true,
+  "plan_id": 456,
+  "plan": {
+    "plan_type": "interpretive",
+    "status": "ok",
+    "targeted_soft_skill": "problem_solving",
+    "learning_style_applied": "visual",
+    "summary": "Plan personalizado enfocado en...",
+    "weeks": [
+      {
+        "week": 1,
+        "focus_areas": ["Conceptos fundamentales de bases de datos"],
+        "activities": [
+          {
+            "title": "Diagramas ER interactivos",
+            "type": "practice",
+            "duration": "45 min",
+            "description": "Crear diagramas entidad-relación..."
+          }
+        ],
+        "resources": [
+          {
+            "title": "Guía visual de normalización",
+            "type": "infographic",
+            "url": "..."
+          }
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "plan_type": "interpretive",
+    "coder_id": 123,
+    "module_id": 4,
+    "module_name": "Base de Datos",
+    "current_week": 1,
+    "execution_ms": 3450
+  }
+}
+```
+</CodeGroup>
+
+### Get Active Plan
+
+```javascript
+GET /api/ia/generate-plan
+Authorization: Session cookie
+
+// Response
+{
+  "success": true,
+  "plan": { /* plan object */ },
+  "metadata": { /* generation metadata */ }
+}
+```
+
+## LLM Integration Details
+
+### Model Configuration
+
+<CardGroup cols={2}>
+  <Card title="Model" icon="microchip">
+    Groq Llama 3.3 70B Versatile
+  </Card>
+  <Card title="Temperature" icon="temperature-half">
+    0.7 (balanced creativity)
+  </Card>
+  <Card title="Max Tokens" icon="coins">
+    8,192 tokens
+  </Card>
+  <Card title="Response Format" icon="brackets-curly">
+    JSON object (enforced)
+  </Card>
+</CardGroup>
+
+### Groq Client Setup
+
+The system uses Groq's API for fast inference with OpenAI-compatible SDK:
+
+```python
+# backend-python/app/services/ia_services.py
+from groq import Groq
+
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+response = client.chat.completions.create(
+    model="llama-3.3-70b-versatile",
+    messages=[
+        {
+            "role": "system",
+            "content": (
+                "Eres Kairo, un arquitecto educativo de Riwi. "
+                "Respondes ÚNICAMENTE con JSON válido, sin texto adicional."
+            )
+        },
+        {"role": "user", "content": prompt}
+    ],
+    temperature=0.7,
+    max_tokens=8192,
+    response_format={"type": "json_object"}
+)
+```
+
+**Implementation:** `backend-python/app/services/ia_services.py:76-140`
+
+<Warning>
+  The system includes fallback mechanisms. If AI generation fails, a safe fallback plan structure is returned to prevent database insertion failures.
+</Warning>
+
+## Data Models
+
+### Soft Skills Assessment
+
+```sql
+CREATE TABLE soft_skills_assessment (
+  coder_id         INT PRIMARY KEY,
+  autonomy         INT CHECK (autonomy BETWEEN 1 AND 5),
+  time_management  INT CHECK (time_management BETWEEN 1 AND 5),
+  problem_solving  INT CHECK (problem_solving BETWEEN 1 AND 5),
+  communication    INT CHECK (communication BETWEEN 1 AND 5),
+  teamwork         INT CHECK (teamwork BETWEEN 1 AND 5),
+  learning_style   VARCHAR(20), -- 'visual' | 'auditory' | 'reading' | 'kinesthetic' | 'mixed'
+  raw_answers      JSONB,       -- Full diagnostic responses
+  assessed_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Complementary Plans
+
+```sql
+CREATE TABLE complementary_plans (
+  id                        SERIAL PRIMARY KEY,
+  coder_id                  INT NOT NULL,
+  module_id                 INT NOT NULL,
+  plan_content              JSONB NOT NULL,
+  targeted_soft_skill       VARCHAR(50),
+  is_active                 BOOLEAN DEFAULT true,
+  soft_skills_snapshot      JSONB,
+  moodle_status_snapshot    JSONB,
+  generated_at              TIMESTAMP DEFAULT NOW()
+);
+```
+
+**Model:** `backend-node/src/models/plan.js`
+
+## Learning Style Adaptation
+
+The AI adapts content delivery based on VARK learning styles:
+
+<Accordion title="Visual Learners (V + VIS)">
+  - Diagrams and flowcharts
+  - Infographics and mind maps
+  - Color-coded examples
+  - Video demonstrations
+</Accordion>
+
+<Accordion title="Auditory Learners (A + VRB)">
+  - Podcast-style explanations
+  - Discussion-based activities
+  - Verbal step-by-step guides
+  - Collaborative problem-solving
+</Accordion>
+
+<Accordion title="Reading/Writing Learners (R)">
+  - Detailed written documentation
+  - Code annotations
+  - Article summaries
+  - Note-taking exercises
+</Accordion>
+
+<Accordion title="Kinesthetic Learners (K)">
+  - Hands-on coding exercises
+  - Interactive simulations
+  - Trial-and-error challenges
+  - Real-world project tasks
+</Accordion>
+
+## Background Plan Generation
+
+Plans are generated asynchronously to avoid blocking the user experience:
+
+```javascript
+// Fire-and-forget pattern
+async function _triggerInterpretivePlan(coderId, moduleId, currentWeek = 1) {
+  try {
+    const res = await fetch(`${PYTHON_API}/generate-plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        coder_id: coderId,
+        module_id: moduleId,
+        plan_type: 'interpretive',
+        current_week: currentWeek
+      })
+    });
+    // Non-blocking - frontend receives immediate response
+  } catch (err) {
+    // Never crash the main flow
+    console.error('[Plan Gen] Failed:', err.message);
+  }
+}
+```
+
+**Implementation:** `backend-node/src/controllers/diagnosticControllers.js:34-60`
+
+## Plan Versioning
+
+When a new plan is generated, the system:
+
+1. Deactivates all previous plans for the coder
+2. Inserts the new plan with `is_active = true`
+3. Preserves historical plans for analytics
+
+```javascript
+// Transaction-based plan storage
+await client.query('BEGIN');
+await client.query(
+  'UPDATE complementary_plans SET is_active = false WHERE coder_id = $1',
+  [coderId]
+);
+await client.query(
+  `INSERT INTO complementary_plans 
+   (coder_id, module_id, plan_content, targeted_soft_skill, is_active) 
+   VALUES ($1, $2, $3, $4, true)`,
+  [coderId, moduleId, planContent, targetedSoftSkill]
+);
+await client.query('COMMIT');
+```
+
+**Implementation:** `backend-node/src/models/plan.js:22-51`
+
+## Performance Tracking
+
+Every AI generation is logged for analytics and debugging:
+
+```javascript
+db_manager.log_generation(
+  coder_id=req.coder_id,
+  agent_type="plan_generator",
+  input_payload={
+    "plan_type": req.plan_type,
+    "module_id": req.module_id,
+    "current_week": req.current_week,
+    "struggling_topics": req.struggling_topics
+  },
+  output_payload={"plan_id": plan_id, "status": plan.get("status", "ok")},
+  execution_time_ms=exec_ms,
+  success=plan.get("status") != "fallback"
+)
+```
+
+**Implementation:** `backend-python/app/routers/roadmap.py:120-132`
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Complete Diagnostic First" icon="clipboard-check">
+    Students must complete the onboarding diagnostic before plans can be generated. The system validates soft skills existence.
+  </Card>
+  
+  <Card title="Weekly Regeneration" icon="clock-rotate-left">
+    Analytical plans should be regenerated weekly to adapt to student progress and emerging challenges.
+  </Card>
+  
+  <Card title="Monitor Fallbacks" icon="triangle-exclamation">
+    Track fallback plan occurrences in `ai_generation_log` to identify model issues or prompt problems.
+  </Card>
+  
+  <Card title="Validate Module Data" icon="database">
+    Ensure modules and weeks are properly seeded before plan generation to avoid 404 errors.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Soft Skills Assessment" href="/features/soft-skills-assessment" icon="brain">
+    Learn how diagnostic data is collected and processed
+  </Card>
+  
+  <Card title="Analytics Dashboard" href="/features/analytics-dashboard" icon="chart-line">
+    View how plan effectiveness is measured
+  </Card>
+</CardGroup>

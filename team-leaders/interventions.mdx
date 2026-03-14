@@ -1,0 +1,492 @@
+---
+title: 'Student Interventions'
+description: 'Provide feedback, track at-risk students, and execute data-driven support strategies'
+icon: 'user-doctor'
+---
+
+## Overview
+
+Effective interventions are the key to student success. This guide covers how to identify at-risk students, provide targeted feedback, and track intervention outcomes.
+
+<Note>
+  All feedback you submit triggers real-time notifications to students via the Kairo notification system.
+</Note>
+
+---
+
+## Identifying At-Risk Students
+
+### Risk Flag System
+
+Kairo automatically flags students who exhibit concerning patterns. Flags are visible in your dashboard with color-coded indicators.
+
+**API Endpoint:** `GET /api/tl/risk-flags`
+
+### Response Example
+
+```json
+{
+  "active_risks": [
+    {
+      "id": 78,
+      "coder_id": 142,
+      "risk_level": "critical",
+      "reason": "Average score below 50% for 2 consecutive weeks",
+      "resolved": false,
+      "created_at": "2026-03-10T08:30:00Z",
+      "full_name": "María González",
+      "email": "maria.gonzalez@example.com"
+    },
+    {
+      "id": 79,
+      "coder_id": 158,
+      "risk_level": "high",
+      "reason": "Low autonomy (2.1/5) and problem-solving (2.3/5) scores",
+      "resolved": false,
+      "created_at": "2026-03-12T14:15:00Z",
+      "full_name": "Carlos Rodríguez",
+      "email": "carlos.rodriguez@example.com"
+    }
+  ]
+}
+```
+
+### Risk Prioritization
+
+The system automatically sorts risk flags by severity (tlControllers.js:224):
+
+```javascript
+ORDER BY
+  CASE rf.risk_level
+    WHEN 'critical' THEN 1
+    WHEN 'high'     THEN 2
+    WHEN 'medium'   THEN 3
+    ELSE 4
+  END
+```
+
+**Always address critical and high-risk students first.**
+
+---
+
+## Intervention Workflow
+
+<Steps>
+  <Step title="Review Risk Flags Daily">
+    Check your dashboard each morning for new or escalating risk flags
+  </Step>
+  <Step title="Analyze Student Details">
+    Click the student in the dashboard to view full performance metrics and soft skills
+  </Step>
+  <Step title="Diagnose Root Cause">
+    Identify if the issue is:
+    - Technical skill gaps (low Moodle scores)
+    - Soft skill deficiencies (autonomy, time management)
+    - Engagement/motivation (irregular login patterns)
+    - External factors (check feedback history for personal challenges)
+  </Step>
+  <Step title="Choose Intervention Type">
+    Select the appropriate response:
+    - **Feedback** - Written guidance/encouragement
+    - **1:1 Session** - Scheduled video call for deeper support
+    - **Resource Sharing** - Supplementary materials or tutorials
+    - **Peer Pairing** - Connect with a strong student for mentorship
+  </Step>
+  <Step title="Submit Feedback">
+    Use the dashboard feedback form to document your intervention
+  </Step>
+  <Step title="Monitor Progress">
+    Track if the student's metrics improve over the next 1-2 weeks
+  </Step>
+  <Step title="Resolve or Escalate">
+    If successful, mark the risk flag as resolved. If not, escalate to program management.
+  </Step>
+</Steps>
+
+---
+
+## Submitting Feedback
+
+### Feedback Form (Dashboard)
+
+In the student detail panel, you'll find a feedback submission form with two fields:
+
+1. **Feedback Type** (dropdown)
+2. **Feedback Message** (textarea)
+
+### Feedback Types
+
+<CardGroup cols={2}>
+  <Card title="encouragement" icon="heart">
+    Positive reinforcement for students showing improvement
+  </Card>
+  <Card title="concern" icon="triangle-exclamation">
+    Alert about declining performance or missed deadlines
+  </Card>
+  <Card title="technical" icon="code">
+    Specific guidance on code quality or debugging
+  </Card>
+  <Card title="soft_skills" icon="people-group">
+    Coaching on autonomy, communication, or teamwork
+  </Card>
+  <Card title="resource" icon="book">
+    Share articles, videos, or tutorials
+  </Card>
+  <Card title="schedule" icon="calendar">
+    Request a 1:1 meeting or check-in
+  </Card>
+</CardGroup>
+
+### API Endpoint
+
+**POST /api/tl/feedback**
+
+```json
+{
+  "coderId": 142,
+  "feedbackText": "I noticed you're struggling with Async/Await. Let's schedule a 30-min session to walk through Promises together. I've also added a video tutorial to your Moodle resources.",
+  "feedbackType": "technical"
+}
+```
+
+### Backend Implementation
+
+**File:** `backend-node/src/controllers/tlControllers.js:172`
+
+<Accordion title="Feedback Submission Code">
+  ```javascript
+  export async function submitFeedback(req, res) {
+    const { coderId, feedbackText, feedbackType } = req.body;
+    const tlId = req.session.userId;
+
+    if (!coderId || !feedbackText || !feedbackType) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    try {
+      // Insert into database
+      const result = await query(
+        `INSERT INTO tl_feedback (coder_id, tl_id, feedback_text, feedback_type, created_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         RETURNING *`,
+        [coderId, tlId, sanitizeInput(feedbackText), sanitizeInput(feedbackType)]
+      );
+
+      // Get TL name for notification
+      const tlResult = await query('SELECT full_name FROM users WHERE id = $1', [tlId]);
+      const tlName = tlResult.rows[0]?.full_name || 'Tu TL';
+
+      // Send real-time notification to student
+      await notifyUser(
+        coderId,
+        'Nuevo Feedback Requerido',
+        `${tlName} te ha dejado un feedback: "${feedbackText.substring(0, 50)}..."`,
+        'feedback',
+        result.rows[0].id
+      );
+
+      res.status(201).json({ success: true, message: 'Feedback registered', data: result.rows[0] });
+    } catch (error) {
+      console.error('[TL Feedback Error]:', error);
+      res.status(500).json({ error: 'Failed to submit feedback' });
+    }
+  }
+  ```
+</Accordion>
+
+---
+
+## Feedback Best Practices
+
+### Writing Effective Feedback
+
+<CardGroup cols={1}>
+  <Card title="Be Specific" icon="bullseye">
+    ❌ "Your code needs work"
+    ✅ "Your async function on line 23 isn't handling errors - add a try/catch block"
+  </Card>
+  <Card title="Balance Constructive + Positive" icon="scale-balanced">
+    Start with what they're doing well, then address areas for improvement
+  </Card>
+  <Card title="Actionable Next Steps" icon="list-check">
+    Always include 1-2 concrete actions: "Watch this video" or "Rewrite function X"
+  </Card>
+  <Card title="Timely Responses" icon="clock">
+    Submit feedback within 24 hours of identifying an issue - delays reduce impact
+  </Card>
+</CardGroup>
+
+### Example Feedback Messages
+
+<Accordion title="Encouragement - Student Improving">
+  > "Carlos, I've noticed your scores jumped from 68% to 82% this week - excellent progress! Your problem-solving during the debugging challenge was impressive. Keep leveraging your kinesthetic learning style by building small projects after each module. Let me know if you need any extra resources!"
+
+  **Type:** `encouragement`
+</Accordion>
+
+<Accordion title="Concern - Declining Performance">
+  > "María, I see your average has dropped from 75% to 58% over the past two weeks, and you haven't logged into Moodle since Monday. Is everything okay? I'd like to schedule a quick check-in call this week. Please reply to let me know if Tuesday or Thursday works better."
+
+  **Type:** `concern`
+</Accordion>
+
+<Accordion title="Technical - Code Quality">
+  > "Your API routes are functional, but you're repeating database connection logic in each file. Check out the DRY (Don't Repeat Yourself) principle - I've added a tutorial on database middleware to your Moodle. Try refactoring your auth routes first and show me the result."
+
+  **Type:** `technical`
+</Accordion>
+
+<Accordion title="Soft Skills - Time Management">
+  > "I noticed you're completing modules right before the deadline most weeks. This pattern correlates with lower retention. Try blocking 2-hour study sessions each morning - your auditory learning style would benefit from following along with video lectures during these focused blocks. Want to try it for one week and see if it helps?"
+
+  **Type:** `soft_skills`
+</Accordion>
+
+---
+
+## Tracking Intervention Outcomes
+
+### Database Schema: `tl_feedback`
+
+```sql
+CREATE TABLE tl_feedback (
+  id SERIAL PRIMARY KEY,
+  coder_id INT REFERENCES users(id),
+  tl_id INT REFERENCES users(id),
+  feedback_text TEXT NOT NULL,
+  feedback_type VARCHAR(50),
+  created_at TIMESTAMP DEFAULT NOW(),
+  read_at TIMESTAMP,           -- When student viewed the feedback
+  responded_at TIMESTAMP        -- When student replied (if applicable)
+);
+```
+
+### Measuring Effectiveness
+
+<Steps>
+  <Step title="Baseline Metrics">
+    Record the student's score, risk level, and soft skills at intervention time
+  </Step>
+  <Step title="Set Follow-Up Date">
+    Check back in 1-2 weeks to measure impact
+  </Step>
+  <Step title="Compare Results">
+    Did their average score increase? Did they complete more activities? Did risk level decrease?
+  </Step>
+  <Step title="Iterate Strategy">
+    If no improvement, try a different intervention type (e.g., peer pairing instead of resources)
+  </Step>
+</Steps>
+
+### Example Query: Student Progress After Feedback
+
+```javascript
+// Get feedback sent to a specific student
+const { data: feedbackLog } = await supabase
+  .from('tl_feedback')
+  .select('*, created_at')
+  .eq('coder_id', coderId)
+  .order('created_at', { ascending: false });
+
+// Get student's scores before/after most recent feedback
+const feedbackDate = feedbackLog[0].created_at;
+
+const { data: progressBefore } = await supabase
+  .from('moodle_progress')
+  .select('average_score')
+  .eq('coder_id', coderId)
+  .lt('updated_at', feedbackDate)
+  .order('updated_at', { ascending: false })
+  .limit(1);
+
+const { data: progressAfter } = await supabase
+  .from('moodle_progress')
+  .select('average_score')
+  .eq('coder_id', coderId)
+  .gte('updated_at', feedbackDate)
+  .order('updated_at', { ascending: false })
+  .limit(1);
+
+const improvement = progressAfter[0].average_score - progressBefore[0].average_score;
+console.log(`Score change: ${improvement > 0 ? '+' : ''}${improvement.toFixed(1)}%`);
+```
+
+---
+
+## Resolving Risk Flags
+
+Once an intervention successfully addresses a student's challenges, update the risk flag.
+
+### Manual Resolution
+
+```javascript
+const { data, error } = await supabase
+  .from('risk_flags')
+  .update({ resolved: true, resolved_at: new Date().toISOString() })
+  .eq('id', riskFlagId)
+  .eq('coder_id', coderId);
+```
+
+### Automatic Resolution (Future Feature)
+
+The system will eventually auto-resolve flags when:
+- Student's average score increases above 70% for 2 consecutive weeks
+- All soft skills improve to 3.0+ after reassessment
+- No new concerning patterns detected for 3 weeks
+
+---
+
+## Escalation Protocol
+
+Some situations require escalation beyond Team Leader intervention.
+
+### When to Escalate
+
+<CardGroup cols={2}>
+  <Card title="Critical Risk Persists" icon="exclamation-triangle">
+    Student remains at critical risk after 2+ interventions
+  </Card>
+  <Card title="Personal Crisis" icon="heart-pulse">
+    Student discloses mental health, financial, or family emergencies
+  </Card>
+  <Card title="Behavioral Issues" icon="user-xmark">
+    Plagiarism, cheating, or disruptive behavior toward peers
+  </Card>
+  <Card title="Prolonged Absence" icon="calendar-xmark">
+    No login or activity for 5+ consecutive days without explanation
+  </Card>
+</CardGroup>
+
+### Escalation Process
+
+<Steps>
+  <Step title="Document the Situation">
+    Export the student's profile PDF and feedback history
+  </Step>
+  <Step title="Notify Program Management">
+    Email or message the program director with:
+    - Student name and ID
+    - Summary of interventions attempted
+    - Current risk level and metrics
+    - Recommended next steps
+  </Step>
+  <Step title="Update Risk Flag">
+    Add a note to the risk flag indicating escalation
+  </Step>
+  <Step title="Continue Monitoring">
+    Stay involved unless management requests full handoff
+  </Step>
+</Steps>
+
+---
+
+## Intervention Resources
+
+Leverage these Kairo features to support your interventions:
+
+### 1. Resource Uploads
+
+**Endpoint:** `POST /api/tl/resource/upload`
+
+Upload PDFs (up to 20MB) that appear in students' Moodle libraries.
+
+```javascript
+const formData = new FormData();
+formData.append('file', pdfFile);
+formData.append('title', 'Async/Await Deep Dive');
+formData.append('target_coders', JSON.stringify([142, 158])); // Specific students or entire clan
+
+await fetch('/api/tl/resource/upload', {
+  method: 'POST',
+  credentials: 'include',
+  body: formData
+});
+```
+
+### 2. AI Learning Plans
+
+Recommend students regenerate their AI learning plan to focus on struggling topics:
+
+> "I see you're stuck on React Hooks. Go to your dashboard and click 'Generate Focus Plan' - make sure to select 'useState' and 'useEffect' as priority topics. The AI will create a custom study guide just for you."
+
+### 3. Peer Collaboration
+
+Use the learning styles chart to pair students with complementary strengths:
+
+- **Visual + Auditory** - Strong presenter can explain concepts while visual learner diagrams
+- **Kinesthetic + Read/Write** - Hands-on coder pairs with documentation writer
+
+---
+
+## Real-Time Notifications
+
+When you submit feedback, the student receives an instant notification.
+
+**Notification Service:** `backend-node/src/services/notificationService.js`
+
+<Accordion title="Notification Implementation (tlControllers.js:195)">
+  ```javascript
+  await notifyUser(
+    coderId,
+    'Nuevo Feedback Requerido',
+    `${tlName} te ha dejado un feedback: "${feedbackText.substring(0, 50)}..."`,
+    'feedback',
+    feedbackId
+  );
+  ```
+
+  The student sees:
+  - **Title:** "Nuevo Feedback Requerido"
+  - **Preview:** First 50 characters of your message
+  - **Type:** `feedback` (triggers specific notification styling)
+  - **Action:** Click to view full feedback in their dashboard
+</Accordion>
+
+---
+
+## Intervention Metrics Dashboard (Coming Soon)
+
+Upcoming feature to track your intervention effectiveness:
+
+- **Response Rate:** % of students who reply to your feedback
+- **Improvement Rate:** % of interventions that result in score increases
+- **Avg Time to Resolution:** How long it takes to resolve risk flags
+- **Most Effective Type:** Which feedback types (technical, soft_skills, etc.) work best for your clan
+
+---
+
+## Best Practices Summary
+
+<CardGroup cols={1}>
+  <Card title="Early Intervention Wins" icon="seedling">
+    Address medium-risk students before they escalate to high/critical
+  </Card>
+  <Card title="Personalize by Learning Style" icon="user">
+    Auditory learners benefit from video calls, kinesthetic from live coding sessions
+  </Card>
+  <Card title="Follow Up Consistently" icon="rotate">
+    Don't submit feedback and disappear - check back in 3-5 days
+  </Card>
+  <Card title="Celebrate Wins" icon="trophy">
+    Always send encouragement feedback when students improve - positive reinforcement matters
+  </Card>
+  <Card title="Document Everything" icon="file-lines">
+    Use the feedback system even for verbal conversations - creates an audit trail
+  </Card>
+</CardGroup>
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Dashboard" icon="gauge-high" href="/team-leaders/dashboard">
+    Monitor student status and risk flags
+  </Card>
+  <Card title="Analytics" icon="chart-simple" href="/team-leaders/analytics">
+    Analyze performance trends to inform interventions
+  </Card>
+  <Card title="Reports" icon="file-pdf" href="/team-leaders/reports">
+    Generate intervention reports for program management
+  </Card>
+</CardGroup>

@@ -1,0 +1,393 @@
+---
+title: "Your Profile"
+description: "Manage your personal information, track progress, and generate your professional CV"
+icon: "user"
+---
+
+## Overview
+
+Your student profile is your professional identity within Kairo. It tracks your learning progress, displays your skills, and can be exported as a polished CV for job applications.
+
+## Accessing Your Profile
+
+Click your avatar or name in the top-right corner, then select **"Mi Perfil"** from the dropdown menu.
+
+## Profile Sections
+
+### 1. Profile Header
+
+
+
+Displays:
+- **Profile Photo:** Upload a custom avatar (supports JPG, PNG, up to 5MB)
+- **Full Name:** Your name from registration
+- **Role Badge:** "Coder" designation
+- **Quick Stats:**
+  - Average Score: Your Moodle performance average
+  - Current Week: Week number in your module
+
+### 2. Personal Information
+
+**Read-Only Fields:**
+- **Email:** Your registered email address (cannot be changed)
+
+**Editable Fields:**
+- **Phone Number:** Optional contact number
+- **Location:** City and country (e.g., "Medellín, Colombia")
+- **Birth Date:** Your date of birth (optional, used for age-appropriate content)
+- **Bio:** A short description about yourself (200 characters max)
+
+<Note>
+Personal information is private and only visible to you and your Team Leader.
+</Note>
+
+### 3. Social Links
+
+Add your professional profiles to showcase your work:
+
+<CardGroup cols={2}>
+  <Card title="GitHub" icon="github">
+    Your GitHub username or profile URL  
+    Example: `github.com/yourhandle`
+  </Card>
+
+  <Card title="LinkedIn" icon="linkedin">
+    Your LinkedIn profile URL  
+    Example: `linkedin.com/in/yourname`
+  </Card>
+
+  <Card title="Portfolio" icon="globe">
+    Your personal website or portfolio  
+    Example: `yourname.dev`
+  </Card>
+
+  <Card title="Twitter/X" icon="twitter">
+    Your Twitter/X profile  
+    Example: `twitter.com/yourhandle`
+  </Card>
+</CardGroup>
+
+### 4. Technical Skills
+
+Manage your technical skill tags:
+
+**Adding Skills:**
+<Steps>
+  <Step title="Click Edit Mode">
+    Click the **Edit Profile** button (pen icon) in the top-right.
+  </Step>
+
+  <Step title="Type Skill Name">
+    Enter a skill in the "Add Skill" input field (e.g., "React", "Node.js", "PostgreSQL").
+  </Step>
+
+  <Step title="Press Enter or Click Add">
+    The skill appears as a colorful pill badge.
+  </Step>
+
+  <Step title="Save Changes">
+    Click **Save Changes** to persist your skills.
+  </Step>
+</Steps>
+
+**Removing Skills:**
+- In edit mode, each skill pill has an **X** button. Click to remove.
+
+**Skill Display:**
+
+```plaintext
+┌─────────────────────────────────────────┐
+│ Habilidades Técnicas                    │
+│                                         │
+│ [JavaScript] [React] [Node.js]         │
+│ [PostgreSQL] [Git] [Docker]            │
+│                                         │
+│ [+ Añadir habilidad]                   │
+└─────────────────────────────────────────┘
+```
+
+<Tip>
+Keep your skills up-to-date! Add new technologies as you learn them throughout the program.
+</Tip>
+
+## Editing Your Profile
+
+### Edit Mode
+
+Click the **Edit Profile** button (pen icon) to enter edit mode:
+
+**What Changes:**
+- Input fields replace read-only text for editable fields
+- Skill pills show remove buttons (X)
+- "Add Skill" input appears
+- **Save Changes** button becomes visible
+- **Preview CV** and **Download CV** buttons hide temporarily
+
+**Saving:**
+
+```javascript
+POST /api/profile/update
+{
+  "personalInfo": {
+    "phone": "+57 300 123 4567",
+    "location": "Medellín, Colombia",
+    "birthDate": "2000-05-15",
+    "bio": "Full-stack developer passionate about building scalable web apps."
+  },
+  "socials": {
+    "github": "github.com/johndoe",
+    "linkedin": "linkedin.com/in/johndoe",
+    "twitter": "twitter.com/johndoe",
+    "portfolio": "johndoe.dev"
+  },
+  "metadata": {
+    "skills": ["JavaScript", "React", "Node.js", "PostgreSQL"]
+  }
+}
+```
+
+**Success:**
+- Green toast notification: **"Perfil actualizado correctamente"**
+- Edit mode exits automatically
+- Profile re-renders with updated data
+
+**Error Handling:**
+- Red toast notification with error message
+- Edit mode remains active so you can fix issues
+- Common errors: Empty required fields, invalid date format
+
+### Canceling Edits
+
+Click the **X** button (same Edit Profile button, now showing an X) to exit edit mode without saving. Changes are discarded.
+
+## Avatar Upload
+
+<Steps>
+  <Step title="Hover Over Avatar">
+    Hover over your profile photo to reveal the edit overlay.
+  </Step>
+
+  <Step title="Click 'Cambiar foto'">
+    Click the overlay to open the file picker.
+  </Step>
+
+  <Step title="Select Image">
+    Choose a JPG or PNG file (max 5MB recommended).
+  </Step>
+
+  <Step title="Auto-Save">
+    The image uploads immediately and updates across all views (dashboard, profile, topbar).
+  </Step>
+</Steps>
+
+**Technical Details:**
+- Images are converted to Base64 and stored in MongoDB `profile_metadata`
+- The `avatarService` caches your avatar to reduce load times
+- Calling `invalidateMyAvatar()` after upload clears the cache
+
+<Warning>
+Large images (>2MB) may take a few seconds to upload. Wait for the success toast before navigating away.
+</Warning>
+
+## CV Generation
+
+Kairo automatically generates a professional CV from your profile data.
+
+### Preview CV
+
+<Steps>
+  <Step title="Click 'Preview CV'">
+    Click the **Preview CV** button in the top-right of your profile.
+  </Step>
+
+  <Step title="View Modal">
+    A modal opens showing your formatted CV with:
+    - Header with your name and contact info
+    - Professional summary (your bio)
+    - Technical skills as colorful badges
+    - Social links section
+  </Step>
+
+  <Step title="Download (Optional)">
+    Click **Download PDF** in the modal to export.
+  </Step>
+</Steps>
+
+### Download CV as PDF
+
+Click **Download CV** directly from your profile to skip the preview and download immediately.
+
+**CV Layout:**
+
+```plaintext
+╔═══════════════════════════════════════╗
+║  [J]  Juan Pérez                      ║
+║       Full Stack Developer · Riwi     ║
+║                                       ║
+║  ✉ juan.perez@mail.com               ║
+║  ☎ +57 300 123 4567                  ║
+║  📍 Medellín, Colombia               ║
+╠═══════════════════════════════════════╣
+║  PERFIL                               ║
+║  Passionate developer focused on...   ║
+╠═══════════════════════════════════════╣
+║  HABILIDADES                          ║
+║  [JavaScript] [React] [Node.js]       ║
+║  [PostgreSQL] [Docker] [Git]          ║
+╠═══════════════════════════════════════╣
+║  REDES                                ║
+║  🔗 GitHub: github.com/jperez         ║
+║  💼 LinkedIn: linkedin.com/in/jperez  ║
+║  🌐 Portfolio: jperez.dev             ║
+╚═══════════════════════════════════════╝
+```
+
+**PDF Generation:**
+- Uses **html2canvas** to render the CV HTML as an image
+- Uses **jsPDF** to convert the canvas to a PDF file
+- Filename: `CV_YourName.pdf` (spaces replaced with underscores)
+
+<Tip>
+Keep your profile complete and updated so your CV is always ready for job opportunities!
+</Tip>
+
+## Progress Tracking
+
+### Current Module Stats
+
+Your profile displays key learning metrics:
+
+| Metric | Description |
+|--------|-------------|
+| **Average Score** | Your Moodle performance average across all completed activities |
+| **Current Week** | Which week you're on in your current module |
+
+**Example Display:**
+
+```plaintext
+┌─────────────────────┐
+│  Promedio: 85.3     │ ← Average score out of 100
+│  Semana: 5          │ ← Current week in module
+└─────────────────────┘
+```
+
+### Soft Skills Dashboard
+
+While not on the profile page itself, your soft skills are tracked on the main dashboard. Navigate there to see:
+- Autonomy, Time Management, Problem Solving, Communication, Teamwork scores
+- Visual bar charts showing strengths and weaknesses
+- Learning style preference (Visual, Kinesthetic, etc.)
+
+## Read-Only Mode (Team Leader View)
+
+When your Team Leader views your profile:
+- They see all your information in **read-only mode**
+- Edit buttons are hidden
+- CV preview/download buttons are hidden (TLs can't export your CV)
+- The page title changes to **"Perfil de [Your Name]"**
+- A back button navigates to the TL dashboard
+
+<Note>
+This allows TLs to review your progress and provide personalized feedback without modifying your data.
+</Note>
+
+## Data Privacy
+
+Your profile data is stored securely:
+
+**PostgreSQL (users table):**
+- Email, full name, role, clan
+- Current module and progress
+
+**PostgreSQL (user_profiles table):**
+- Personal info (phone, location, birth date)
+- Bio text
+- Social links (GitHub, LinkedIn, etc.)
+
+**MongoDB (profile_metadata):**
+- Avatar URL (Base64 image)
+- Skills array
+- Custom metadata
+
+**Who Can See Your Profile:**
+- ✅ You (full edit access)
+- ✅ Your Team Leader (read-only)
+- ❌ Other students (cannot view)
+- ❌ Students from other clans (cannot view)
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Complete Your Bio" icon="pen">
+    Write a compelling 2-3 sentence bio highlighting your goals and interests.
+  </Card>
+
+  <Card title="Add Social Links" icon="link">
+    Connect your GitHub and LinkedIn to showcase your work and network professionally.
+  </Card>
+
+  <Card title="List Relevant Skills" icon="code">
+    Add skills as you learn them. Keep it honest - these reflect your actual abilities.
+  </Card>
+
+  <Card title="Update Regularly" icon="refresh">
+    Update your profile monthly as you complete modules and gain new skills.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Avatar Not Updating
+
+**Problem:** Avatar shows old image after upload.  
+**Solution:** Hard refresh (`Ctrl+Shift+R` or `Cmd+Shift+R`) to clear browser cache.
+
+### "Failed to Save" Error
+
+**Problem:** Changes don't persist when clicking Save.  
+**Solutions:**
+- Check that required fields aren't empty
+- Ensure birth date is in `YYYY-MM-DD` format
+- Verify your session hasn't expired (try logging out and back in)
+
+### CV Download Not Working
+
+**Problem:** PDF doesn't download when clicking button.  
+**Solutions:**
+- Ensure you have a bio and at least one skill added
+- Check browser's pop-up blocker settings
+- Try the "Preview CV" modal instead and download from there
+
+## FAQs
+
+<AccordionGroup>
+  <Accordion title="Can I change my email address?">
+    No. Your email is tied to your account and cannot be changed. Contact your TL or an administrator if you need to update it.
+  </Accordion>
+
+  <Accordion title="Is my profile public?">
+    No. Only you and your Team Leader can view your profile. It's not visible to other students or the public internet.
+  </Accordion>
+
+  <Accordion title="Can I delete my avatar?">
+    Currently, you can only replace your avatar with a new image. If you want to remove it entirely, contact support.
+  </Accordion>
+
+  <Accordion title="How often should I update my profile?">
+    Update your profile whenever you:
+    - Learn a new technology (add to skills)
+    - Complete a major project (update bio)
+    - Create new social profiles (add links)
+    - Change contact information
+  </Accordion>
+
+  <Accordion title="Can my CV be used for job applications?">
+    Absolutely! The generated CV is professional-quality and suitable for early-career developer positions. Customize your bio and skills to match each job posting.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+- [Dashboard Overview](/students/onboarding#what-happens-next) - Return to your dashboard to see your progress
+- [Learning Paths](/students/learning-paths) - Continue your personalized learning journey
+- [Assignments](/students/assignments) - Access coursework and resources

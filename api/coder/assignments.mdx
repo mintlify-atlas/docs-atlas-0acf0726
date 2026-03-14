@@ -1,0 +1,739 @@
+---
+title: 'Assignments & Plans'
+description: 'Manage AI-generated learning plans, daily exercises, and student submissions'
+---
+
+## Authentication
+
+All assignment endpoints require:
+- **Session-based authentication** via `req.session.userId`
+- **Role:** `coder`
+- **Onboarding status:** Must be completed (`first_login = false`)
+
+---
+
+## Get Active Plan
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.kairo.com/api/coder/plan \
+  -H "Cookie: session=abc123..."
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/plan', {
+  credentials: 'include'
+});
+const { hasPlan, plan } = await response.json();
+```
+</CodeGroup>
+
+**GET** `/api/coder/plan`
+
+Retrieves the student's currently active AI-generated complementary learning plan, including progress tracking.
+
+### Response
+
+<ResponseField name="hasPlan" type="boolean">
+  Whether an active plan exists
+</ResponseField>
+
+<ResponseField name="plan" type="object | null">
+  Plan details (null if no active plan)
+  
+  <ResponseField name="id" type="integer">
+    Plan ID
+  </ResponseField>
+  
+  <ResponseField name="moduleId" type="integer">
+    Associated module ID
+  </ResponseField>
+  
+  <ResponseField name="planContent" type="object">
+    AI-generated plan content (structured as JSONB)
+  </ResponseField>
+  
+  <ResponseField name="softSkillsSnapshot" type="object">
+    Soft skills state when plan was generated
+  </ResponseField>
+  
+  <ResponseField name="moodleStatusSnapshot" type="object">
+    Moodle progress state when plan was generated
+  </ResponseField>
+  
+  <ResponseField name="targetedSoftSkill" type="string">
+    Primary soft skill being developed (e.g., "time_management")
+  </ResponseField>
+  
+  <ResponseField name="generatedAt" type="string">
+    ISO timestamp when plan was created
+  </ResponseField>
+  
+  <ResponseField name="completedDays" type="object">
+    Map of completed day numbers to completion timestamps
+  </ResponseField>
+  
+  <ResponseField name="currentDay" type="number">
+    First uncompleted day (1-20)
+  </ResponseField>
+  
+  <ResponseField name="completedCount" type="number">
+    Total number of completed days
+  </ResponseField>
+  
+  <ResponseField name="isComplete" type="boolean">
+    Whether all 20 days are completed
+  </ResponseField>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "hasPlan": true,
+  "plan": {
+    "id": 42,
+    "moduleId": 4,
+    "planContent": {
+      "days": [
+        {
+          "day": 1,
+          "topic": "SQL Fundamentals",
+          "activities": [...]
+        }
+      ]
+    },
+    "softSkillsSnapshot": {
+      "autonomy": 4,
+      "timeManagement": 3,
+      "problemSolving": 5
+    },
+    "moodleStatusSnapshot": {
+      "currentWeek": 5,
+      "averageScore": 87.5,
+      "plan_type": "adaptive"
+    },
+    "targetedSoftSkill": "time_management",
+    "generatedAt": "2026-03-10T12:00:00Z",
+    "completedDays": {
+      "1": { "completedAt": "2026-03-11T14:30:00Z" },
+      "2": { "completedAt": "2026-03-12T10:15:00Z" }
+    },
+    "currentDay": 3,
+    "completedCount": 2,
+    "isComplete": false
+  }
+}
+```
+
+```json No Active Plan
+{
+  "hasPlan": false,
+  "plan": null
+}
+```
+
+---
+
+## Request New Plan
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.kairo.com/api/coder/plan/request \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=abc123..." \
+  -d '{
+    "plan_type": "adaptive",
+    "current_week": 5
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/plan/request', {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    plan_type: 'adaptive',
+    current_week: 5
+  })
+});
+const data = await response.json();
+```
+</CodeGroup>
+
+**POST** `/api/coder/plan/request`
+
+Triggers AI plan generation via the Python microservice. Returns immediately while plan generation happens asynchronously.
+
+### Request Body
+
+<ParamField body="plan_type" type="string" default="interpretive">
+  Type of plan to generate (e.g., `"interpretive"`, `"adaptive"`, `"remedial"`)
+</ParamField>
+
+<ParamField body="current_week" type="number" default="1">
+  Current week number in the module
+</ParamField>
+
+### Response
+
+<ResponseField name="requested" type="boolean">
+  Whether the request was accepted
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Instruction to retry fetching after generation completes
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "requested": true,
+  "message": "Plan en generación. Reintenta en unos segundos."
+}
+```
+
+<Note>
+  Plan generation is asynchronous. Poll `/api/coder/plan` after a few seconds to retrieve the generated plan.
+</Note>
+
+---
+
+## Complete Day
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.kairo.com/api/coder/plan/42/day/3/complete \
+  -H "Cookie: session=abc123..."
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/plan/42/day/3/complete', {
+  method: 'POST',
+  credentials: 'include'
+});
+const data = await response.json();
+```
+</CodeGroup>
+
+**POST** `/api/coder/plan/:planId/day/:day/complete`
+
+Marks a specific day as completed in the learning plan.
+
+### Path Parameters
+
+<ParamField path="planId" type="integer" required>
+  Plan ID
+</ParamField>
+
+<ParamField path="day" type="integer" required>
+  Day number to complete (1-20)
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the operation succeeded
+</ResponseField>
+
+<ResponseField name="completedDays" type="object">
+  Updated map of all completed days
+</ResponseField>
+
+<ResponseField name="completedCount" type="number">
+  Total completed days
+</ResponseField>
+
+<ResponseField name="nextDay" type="number | null">
+  Next uncompleted day (null if all complete)
+</ResponseField>
+
+<ResponseField name="isComplete" type="boolean">
+  Whether all 20 days are now completed
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "success": true,
+  "completedDays": {
+    "1": { "completedAt": "2026-03-11T14:30:00Z" },
+    "2": { "completedAt": "2026-03-12T10:15:00Z" },
+    "3": { "completedAt": "2026-03-14T09:45:00Z" }
+  },
+  "completedCount": 3,
+  "nextDay": 4,
+  "isComplete": false
+}
+```
+
+### Error Responses
+
+```json 400 - Invalid Day
+{
+  "error": "Día inválido. Debe ser entre 1 y 20."
+}
+```
+
+```json 404 - Plan Not Found
+{
+  "error": "Plan no encontrado o inactivo."
+}
+```
+
+---
+
+## Get Plan Details
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.kairo.com/api/coder/plans/42 \
+  -H "Cookie: session=abc123..."
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/plans/42', {
+  credentials: 'include'
+});
+const { plan } = await response.json();
+```
+</CodeGroup>
+
+**GET** `/api/coder/plans/:planId`
+
+Retrieves full details for a specific plan including all activities.
+
+### Path Parameters
+
+<ParamField path="planId" type="integer" required>
+  Plan ID to retrieve
+</ParamField>
+
+### Response
+
+<ResponseField name="plan" type="object">
+  Complete plan record with activities aggregated
+  
+  <ResponseField name="activities" type="array">
+    Array of plan activities ordered by day number
+  </ResponseField>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "plan": {
+    "id": 42,
+    "coder_id": 15,
+    "module_id": 4,
+    "targeted_soft_skill": "time_management",
+    "is_active": true,
+    "generated_at": "2026-03-10T12:00:00Z",
+    "activities": [
+      {
+        "id": 201,
+        "plan_id": 42,
+        "day_number": 1,
+        "activity_type": "exercise",
+        "title": "SQL SELECT Practice",
+        "description": "Practice basic SELECT queries"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Generate Exercise
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.kairo.com/api/coder/exercise/generate \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=abc123..." \
+  -d '{
+    "planId": 42,
+    "dayNumber": 3,
+    "topic": "SQL Joins",
+    "difficulty": "intermediate",
+    "language": "sql"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/exercise/generate', {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    planId: 42,
+    dayNumber: 3,
+    topic: 'SQL Joins',
+    difficulty: 'intermediate',
+    language: 'sql'
+  })
+});
+const { exercise, cached } = await response.json();
+```
+</CodeGroup>
+
+**POST** `/api/coder/exercise/generate`
+
+Generates or retrieves a cached coding exercise for a specific plan day. Checks Node-side cache first, then calls Python AI service if needed.
+
+### Request Body
+
+<ParamField body="planId" type="integer" required>
+  Plan ID
+</ParamField>
+
+<ParamField body="dayNumber" type="integer" required>
+  Day number (1-20)
+</ParamField>
+
+<ParamField body="topic" type="string" required>
+  Exercise topic/focus area
+</ParamField>
+
+<ParamField body="weekNumber" type="number" optional>
+  Current week number (default: 1)
+</ParamField>
+
+<ParamField body="description" type="string" optional>
+  Additional context for exercise generation
+</ParamField>
+
+<ParamField body="difficulty" type="string" default="intermediate">
+  Difficulty level (`"beginner"`, `"intermediate"`, `"advanced"`)
+</ParamField>
+
+<ParamField body="moduleName" type="string" default="Bases de Datos">
+  Module name for context
+</ParamField>
+
+<ParamField body="language" type="string" optional>
+  Programming language (e.g., `"sql"`, `"python"`, `"javascript"`)
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether exercise was retrieved/generated successfully
+</ResponseField>
+
+<ResponseField name="exercise" type="object">
+  Exercise details
+  
+  <ResponseField name="id" type="integer">
+    Exercise ID
+  </ResponseField>
+  
+  <ResponseField name="title" type="string">
+    Exercise title
+  </ResponseField>
+  
+  <ResponseField name="description" type="string">
+    Exercise instructions
+  </ResponseField>
+  
+  <ResponseField name="language" type="string">
+    Programming language
+  </ResponseField>
+  
+  <ResponseField name="starter_code" type="string">
+    Initial code template
+  </ResponseField>
+  
+  <ResponseField name="hints" type="array">
+    Array of hint strings
+  </ResponseField>
+  
+  <ResponseField name="topic" type="string">
+    Exercise topic
+  </ResponseField>
+  
+  <ResponseField name="difficulty" type="string">
+    Difficulty level
+  </ResponseField>
+  
+  <ResponseField name="expected_output" type="string">
+    Expected result description
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="cached" type="boolean">
+  Whether exercise was retrieved from cache (true) or freshly generated (false/omitted)
+</ResponseField>
+
+### Example Response
+
+```json Cached Exercise
+{
+  "success": true,
+  "exercise": {
+    "id": 305,
+    "title": "Employee Department Join",
+    "description": "Write a query that joins employees with their departments",
+    "language": "sql",
+    "starter_code": "SELECT e.name, d.department_name\nFROM employees e\n-- Complete the JOIN",
+    "hints": [
+      "Use INNER JOIN to connect the tables",
+      "Join on the department_id foreign key"
+    ],
+    "topic": "SQL Joins",
+    "difficulty": "intermediate",
+    "expected_output": "A list of employee names with their department names"
+  },
+  "cached": true
+}
+```
+
+---
+
+## Submit Exercise
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.kairo.com/api/coder/exercise/305/submit \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=abc123..." \
+  -d '{
+    "code": "SELECT e.name, d.department_name FROM employees e INNER JOIN departments d ON e.department_id = d.id;"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/exercise/305/submit', {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    code: 'SELECT e.name, d.department_name FROM employees e INNER JOIN departments d ON e.department_id = d.id;'
+  })
+});
+const data = await response.json();
+```
+</CodeGroup>
+
+**POST** `/api/coder/exercise/:exerciseId/submit`
+
+Submits a solution for review by the Team Leader.
+
+### Path Parameters
+
+<ParamField path="exerciseId" type="integer" required>
+  Exercise ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="code" type="string" required>
+  Student's solution code (cannot be empty)
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether submission was saved
+</ResponseField>
+
+<ResponseField name="submissionId" type="integer">
+  ID of the created submission record
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "success": true,
+  "submissionId": 1042,
+  "message": "¡Solución enviada! Tu TL podrá revisarla."
+}
+```
+
+### Error Responses
+
+```json 400 - Empty Code
+{
+  "error": "El campo code no puede estar vacío."
+}
+```
+
+```json 404 - Exercise Not Found
+{
+  "error": "Ejercicio no encontrado."
+}
+```
+
+---
+
+## Get Submissions
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.kairo.com/api/coder/exercise/305/submissions \
+  -H "Cookie: session=abc123..."
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/exercise/305/submissions', {
+  credentials: 'include'
+});
+const { submissions } = await response.json();
+```
+</CodeGroup>
+
+**GET** `/api/coder/exercise/:exerciseId/submissions`
+
+Retrieves the student's submission history for a specific exercise (most recent 5).
+
+### Path Parameters
+
+<ParamField path="exerciseId" type="integer" required>
+  Exercise ID
+</ParamField>
+
+### Response
+
+<ResponseField name="submissions" type="array">
+  Array of submission objects (max 5, newest first)
+  
+  <ResponseField name="id" type="integer">
+    Submission ID
+  </ResponseField>
+  
+  <ResponseField name="code_submitted" type="string">
+    The code that was submitted
+  </ResponseField>
+  
+  <ResponseField name="submitted_at" type="string">
+    ISO timestamp of submission
+  </ResponseField>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "submissions": [
+    {
+      "id": 1042,
+      "code_submitted": "SELECT e.name, d.department_name FROM employees e INNER JOIN departments d ON e.department_id = d.id;",
+      "submitted_at": "2026-03-14T15:30:00Z"
+    },
+    {
+      "id": 1038,
+      "code_submitted": "SELECT * FROM employees JOIN departments;",
+      "submitted_at": "2026-03-14T14:20:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## Update Activity Progress
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.kairo.com/api/coder/activities/201/complete \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=abc123..." \
+  -d '{
+    "reflectionText": "I learned how to use INNER JOIN effectively",
+    "timeSpent": 45
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/activities/201/complete', {
+  method: 'PATCH',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    reflectionText: 'I learned how to use INNER JOIN effectively',
+    timeSpent: 45
+  })
+});
+const { success, data } = await response.json();
+```
+</CodeGroup>
+
+**PATCH** `/api/coder/activities/:id/complete`
+
+Marks a plan activity as completed and records reflection/time spent. Uses upsert logic to allow re-submission.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Activity ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="reflectionText" type="string" optional>
+  Student's reflection on the activity
+</ParamField>
+
+<ParamField body="timeSpent" type="number" optional>
+  Time spent in minutes
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the operation succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Complete activity_progress record
+  
+  <ResponseField name="activity_id" type="integer">
+    Activity ID
+  </ResponseField>
+  
+  <ResponseField name="coder_id" type="integer">
+    Student user ID
+  </ResponseField>
+  
+  <ResponseField name="completed" type="boolean">
+    Always true
+  </ResponseField>
+  
+  <ResponseField name="reflection_text" type="string">
+    Stored reflection
+  </ResponseField>
+  
+  <ResponseField name="time_spent_minutes" type="number">
+    Stored time in minutes
+  </ResponseField>
+  
+  <ResponseField name="completed_at" type="string">
+    ISO timestamp (auto-updated on re-submission)
+  </ResponseField>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "activity_id": 201,
+    "coder_id": 15,
+    "completed": true,
+    "reflection_text": "I learned how to use INNER JOIN effectively",
+    "time_spent_minutes": 45,
+    "completed_at": "2026-03-14T16:00:00Z"
+  }
+}
+```

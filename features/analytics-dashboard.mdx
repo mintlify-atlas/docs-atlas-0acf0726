@@ -1,0 +1,529 @@
+---
+title: 'Analytics Dashboard'
+description: 'Real-time performance monitoring, cohort analytics, and risk detection for Team Leaders'
+icon: 'chart-line'
+---
+
+## Overview
+
+Kairo's analytics dashboard provides Team Leaders with comprehensive visibility into student performance, soft skills development, and at-risk learners. The system aggregates data from Moodle progress, soft skills assessments, and AI-generated reports.
+
+<Note>
+  Dashboards are **clan-scoped**—Team Leaders only see data for students in their assigned clan.
+</Note>
+
+## Dashboard Components
+
+<CardGroup cols={2}>
+  <Card title="Cohort Overview" icon="users">
+    Total students, onboarding completion, average performance, and risk counts
+  </Card>
+  <Card title="Soft Skills Heatmap" icon="fire">
+    Average scores across five dimensions: autonomy, time management, problem solving, communication, teamwork
+  </Card>
+  <Card title="Student List" icon="list">
+    Individual coder profiles with progress, risk levels, and quick actions
+  </Card>
+  <Card title="AI Reports" icon="robot">
+    Weekly AI-generated analytical reports with recommendations
+  </Card>
+</CardGroup>
+
+## API Reference
+
+### Get Dashboard Data
+
+<CodeGroup>
+```javascript Request
+GET /api/tl/dashboard
+Authorization: Session cookie (role: tl)
+```
+
+```javascript Response
+{
+  "tl": {
+    "fullName": "María González",
+    "clanId": "A1"
+  },
+  "coders": [
+    {
+      "id": 123,
+      "full_name": "John Doe",
+      "email": "john@example.com",
+      "first_login": null,
+      "clan_id": "A1",
+      "average_score": 72.5,
+      "current_week": 3,
+      "autonomy": 4,
+      "time_management": 3,
+      "problem_solving": 5,
+      "communication": 3,
+      "teamwork": 4,
+      "learning_style": "visual",
+      "risk_level": "medium"
+    }
+  ],
+  "overview": {
+    "totalCoders": 25,
+    "completedOnboarding": 23,
+    "pendingOnboarding": 2,
+    "highRiskCoders": 3,
+    "clanAvgScore": "74.2"
+  },
+  "softSkillsAverage": {
+    "autonomy": 3.4,
+    "time_management": 3.8,
+    "problem_solving": 3.2,
+    "communication": 4.1,
+    "teamwork": 4.3
+  }
+}
+```
+</CodeGroup>
+
+**Implementation:** `backend-node/src/controllers/tlControllers.js:248-345`
+
+### Get All Coders by Clan
+
+```javascript
+GET /api/tl/coders/clan/:clan_id
+
+// Response
+{
+  "clan": "A1",
+  "total": 25,
+  "coders": [
+    {
+      "id": 123,
+      "full_name": "John Doe",
+      "email": "john@example.com",
+      "average_score": 72.5,
+      "current_week": 3,
+      "risk_level": "high",
+      "risk_reason": "Low attendance + failing scores"
+    }
+  ]
+}
+```
+
+**Ordering:** Results are ordered by risk severity (critical → high → medium → low) then by name.
+
+**Implementation:** `backend-node/src/controllers/tlControllers.js:26-61`
+
+### Get Clan Metrics
+
+```javascript
+GET /api/tl/metrics/clan/:clan_id
+
+// Response
+{
+  "clanId": "A1",
+  "metrics": {
+    "averagePerformance": "74.20",
+    "highRiskCoders": 3,
+    "totalStudents": 25,
+    "riskPercentage": "12.00"
+  }
+}
+```
+
+**Implementation:** `backend-node/src/controllers/tlControllers.js:71-107`
+
+### Get Coder Full Detail
+
+```javascript
+GET /api/tl/coder/:id/details
+
+// Response
+{
+  "coder": {
+    "id": 123,
+    "full_name": "John Doe",
+    "email": "john@example.com",
+    "clan_id": "A1",
+    "clanId": "A1",
+    "created_at": "2026-01-15T10:00:00Z",
+    "joined_date": "January 15, 2026",
+    "average_score": 72.5,
+    "current_week": 3,
+    "weeks_completed": [1, 2],
+    "autonomy": 4,
+    "time_management": 3,
+    "problem_solving": 5,
+    "communication": 3,
+    "teamwork": 4,
+    "learning_style": "visual"
+  }
+}
+```
+
+**Implementation:** `backend-node/src/controllers/tlControllers.js:119-163`
+
+## Data Aggregation Logic
+
+### Overview Calculations
+
+<Steps>
+  <Step title="Total Coders">
+    Count all users with `role = 'coder'` in the TL's clan.
+  </Step>
+
+  <Step title="Completed Onboarding">
+    Count coders where `first_login IS NULL` (indicates they've logged in at least once after registration).
+  </Step>
+
+  <Step title="High Risk Coders">
+    Count coders with unresolved risk flags where `risk_level IN ('high', 'critical')`.
+    
+    ```javascript
+    const highRiskCoders = coders.filter(
+      (c) => c.risk_level === 'high' || c.risk_level === 'critical'
+    ).length;
+    ```
+  </Step>
+
+  <Step title="Clan Average Score">
+    Average of all `moodle_progress.average_score` values for coders in the clan.
+    
+    ```javascript
+    const clanAvgScore = totalCoders > 0
+      ? (coders.reduce((acc, c) => acc + parseFloat(c.average_score || 0), 0) / totalCoders).toFixed(1)
+      : 0;
+    ```
+  </Step>
+</Steps>
+
+### Soft Skills Averaging
+
+<Warning>
+  Only coders who have completed the diagnostic (`learning_style IS NOT NULL`) are included in soft skills averages to avoid skewing results toward zero.
+</Warning>
+
+```javascript
+const codersWithSkills = coders.filter((c) => c.learning_style !== null);
+
+if (codersWithSkills.length > 0) {
+  codersWithSkills.forEach((c) => {
+    softSkillsAverage.autonomy += parseFloat(c.autonomy || 0);
+    softSkillsAverage.time_management += parseFloat(c.time_management || 0);
+    softSkillsAverage.problem_solving += parseFloat(c.problem_solving || 0);
+    softSkillsAverage.communication += parseFloat(c.communication || 0);
+    softSkillsAverage.teamwork += parseFloat(c.teamwork || 0);
+  });
+
+  Object.keys(softSkillsAverage).forEach((key) => {
+    softSkillsAverage[key] = parseFloat(
+      (softSkillsAverage[key] / codersWithSkills.length).toFixed(1)
+    );
+  });
+}
+```
+
+**Implementation:** `backend-node/src/controllers/tlControllers.js:303-329`
+
+## SQL Queries
+
+### Dashboard Main Query
+
+```sql
+SELECT 
+  u.id, u.full_name, u.email, u.first_login, u.clan AS clan_id,
+  mp.average_score, mp.current_week,
+  ss.autonomy, ss.time_management, ss.problem_solving, 
+  ss.communication, ss.teamwork, ss.learning_style,
+  rf.risk_level
+FROM users u
+LEFT JOIN moodle_progress mp ON u.id = mp.coder_id
+LEFT JOIN soft_skills_assessment ss ON u.id = ss.coder_id
+LEFT JOIN risk_flags rf ON u.id = rf.coder_id AND rf.resolved = false
+WHERE u.role = 'coder' AND u.clan = $1
+ORDER BY u.full_name ASC
+```
+
+**Note:** Uses `LEFT JOIN` to include coders who haven't started yet or haven't completed diagnostics.
+
+### Metrics Query
+
+```sql
+SELECT
+  AVG(mp.average_score) AS clan_average,
+  COUNT(CASE WHEN rf.risk_level IN ('high','critical') THEN 1 END) AS high_risk_count,
+  COUNT(u.id) AS total_coders
+FROM users u
+LEFT JOIN moodle_progress mp ON u.id = mp.coder_id
+LEFT JOIN risk_flags rf ON u.id = rf.coder_id AND rf.resolved = false
+WHERE u.clan = $1 AND u.role = 'coder'
+```
+
+## AI-Generated Reports
+
+### Generate Report
+
+Team Leaders can request AI-generated analytical reports with personalized recommendations:
+
+<CodeGroup>
+```javascript Request
+POST /api/ia/generate-report
+Authorization: Session cookie (role: tl)
+```
+
+```javascript Response
+{
+  "success": true,
+  "report": {
+    "report_title": "Clan A1 — Performance Report",
+    "generated_date": "March 14, 2026",
+    "risk_level": "medium",
+    "summary": "The clan shows solid overall progress with an average score of 74.2. Most students have completed onboarding and are actively engaged in week 3 content. Communication and teamwork scores are particularly strong.",
+    "risks": "Three high-risk students require immediate attention. Two are struggling with database normalization concepts, and one has attendance issues. The class average dropped 5 points in week 2, indicating content difficulty.",
+    "recommendations": "Schedule 1-on-1 sessions with high-risk students. Consider a supplementary workshop on SQL joins and normalization. Review week 2 materials for clarity improvements.",
+    "action_items": [
+      "Meet with John Doe and María López this week",
+      "Create visual diagram resources for normalization",
+      "Host peer tutoring session for week 2 strugglers",
+      "Follow up on attendance issues with Sarah Chen"
+    ]
+  }
+}
+```
+</CodeGroup>
+
+**Implementation:** `backend-node/src/controllers/iaControllers.js:143-191`
+
+### Report Generation Flow
+
+<Steps>
+  <Step title="Aggregate Clan Data">
+    Node.js fetches all coders in the TL's clan, calculates average scores, counts high-risk students, and identifies struggling topics.
+  </Step>
+
+  <Step title="Call Python Microservice">
+    ```javascript
+    const payload = {
+      clan: "A1",
+      tl_id: user.id,
+      total_coders: 25,
+      average_score: 74.2,
+      high_risk_count: 3
+    };
+    
+    const aiResponse = await callPythonApi('/generate-report', payload);
+    ```
+  </Step>
+
+  <Step title="Groq LLM Analysis">
+    The Python service uses Groq's Llama 3.3 70B model to analyze the data:
+    
+    ```python
+    prompt = f"""
+    You are an educational data analyst for Riwi coding bootcamp.
+    Write a professional report for the Team Leader of clan '{req.clan}'.
+    
+    DATA:
+    - Total coders: {req.total_coders}
+    - Average score: {req.average_score:.1f}/100
+    - High/critical risk coders: {req.high_risk_count}
+    
+    Write 3 sections:
+    1. Current state summary
+    2. Main risks and concerns
+    3. Concrete recommendations (3-5 action items)
+    """
+    ```
+    
+    **Implementation:** `backend-python/app/routers/reports.py:50-86`
+  </Step>
+
+  <Step title="Save to Database">
+    Reports are stored in `ai_reports` table and marked as unviewed:
+    
+    ```python
+    supabase.table("ai_reports").insert({
+        "target_type":     "clan",
+        "target_id":       req.tl_id,
+        "summary_text":    report.get("summary", ""),
+        "risk_level":      report.get("risk_level", "medium"),
+        "recommendations": report.get("recommendations", ""),
+        "clan_id":         req.clan,
+        "viewed_by_tl":    False
+    }).execute()
+    ```
+  </Step>
+</Steps>
+
+## PDF Report Generation
+
+Team Leaders can export clan data as PDF reports:
+
+```javascript
+GET /generate-pdf/:clan
+
+// Returns PDF file as StreamingResponse
+Content-Type: application/pdf
+Content-Disposition: attachment; filename=clan_A1_report.pdf
+```
+
+### PDF Contents
+
+<Accordion title="Overview Section">
+  - Total coders in clan
+  - Average performance score
+  - Diagnostics completion count
+  - Generated date and Kairo AI branding
+</Accordion>
+
+<Accordion title="Coder Profiles">
+  For each student:
+  - Full name and email
+  - Current week and average score
+  - All five soft skills scores
+  - Learning style
+  - Diagnostic completion status
+</Accordion>
+
+**Implementation:** `backend-python/app/routers/reports.py:129-244`
+
+### PDF Generation Technology
+
+<Note>
+  Kairo uses **fpdf2** (pure Python PDF library) to avoid system dependencies like wkhtmltopdf. This ensures portability and eliminates deployment issues.
+</Note>
+
+```python
+from fpdf import FPDF
+
+def _build_pdf(clan: str, coders: list, skills_map: dict, progress_map: dict) -> bytes:
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    
+    # Header with Kairo branding
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_fill_color(109, 40, 217)  # Kairo purple
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(0, 14, f"  Clan {clan.upper()} — Performance Report", fill=True, ln=True)
+    
+    # ... profile sections ...
+    
+    return bytes(pdf.output())
+```
+
+## Feedback System
+
+Team Leaders can submit feedback to students directly from the dashboard:
+
+<CodeGroup>
+```javascript Request
+POST /api/tl/feedback
+Content-Type: application/json
+
+{
+  "coderId": 123,
+  "feedbackText": "Great progress this week! Focus more on SQL optimization techniques.",
+  "feedbackType": "encouragement"
+}
+```
+
+```javascript Response (201 Created)
+{
+  "success": true,
+  "message": "Feedback registered",
+  "data": {
+    "id": 456,
+    "coder_id": 123,
+    "tl_id": 789,
+    "feedback_text": "Great progress this week! Focus more on SQL optimization techniques.",
+    "feedback_type": "encouragement",
+    "created_at": "2026-03-14T20:30:00Z"
+  }
+}
+```
+</CodeGroup>
+
+**Real-time Notification:** The system automatically sends a notification to the student:
+
+```javascript
+await notifyUser(
+  coderId,
+  'Nuevo Feedback Requerido',
+  `${tlName} te ha dejado un feedback: "${feedbackText.substring(0, 50)}..."`,
+  'feedback',
+  feedbackId
+);
+```
+
+**Implementation:** `backend-node/src/controllers/tlControllers.js:172-212`
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Monitor Risk Flags" icon="triangle-exclamation">
+    Check the dashboard daily for new high-risk students. Early intervention improves outcomes.
+  </Card>
+  
+  <Card title="Weekly AI Reports" icon="calendar-week">
+    Generate AI reports every Monday to get fresh insights and action items for the week.
+  </Card>
+  
+  <Card title="Track Soft Skills Trends" icon="chart-area">
+    Use the soft skills heatmap to identify clan-wide weaknesses and plan group interventions.
+  </Card>
+  
+  <Card title="Export PDFs for Meetings" icon="file-pdf">
+    Generate PDF reports before 1-on-1s or cohort reviews to have data-backed conversations.
+  </Card>
+</CardGroup>
+
+## Performance Optimizations
+
+<Accordion title="Single Query Strategy">
+  The dashboard uses one comprehensive LEFT JOIN query instead of multiple round-trips:
+  
+  ```sql
+  SELECT u.*, mp.*, ss.*, rf.risk_level
+  FROM users u
+  LEFT JOIN moodle_progress mp ON u.id = mp.coder_id
+  LEFT JOIN soft_skills_assessment ss ON u.id = ss.coder_id
+  LEFT JOIN risk_flags rf ON u.id = rf.coder_id AND rf.resolved = false
+  WHERE u.role = 'coder' AND u.clan = $1
+  ```
+  
+  This reduces database load and latency for large clans.
+</Accordion>
+
+<Accordion title="Clan-Based Indexing">
+  The `users` table should have an index on the `clan` column:
+  
+  ```sql
+  CREATE INDEX idx_users_clan ON users(clan) WHERE role = 'coder';
+  ```
+</Accordion>
+
+<Accordion title="Materialized Views for Historical Trends">
+  For historical analytics, consider materialized views that refresh daily:
+  
+  ```sql
+  CREATE MATERIALIZED VIEW clan_weekly_stats AS
+  SELECT 
+    u.clan,
+    DATE_TRUNC('week', mp.updated_at) AS week_start,
+    AVG(mp.average_score) AS avg_score,
+    COUNT(*) AS active_coders
+  FROM users u
+  JOIN moodle_progress mp ON u.id = mp.coder_id
+  WHERE u.role = 'coder'
+  GROUP BY u.clan, week_start;
+  ```
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Risk Detection" href="/features/risk-detection" icon="shield-exclamation">
+    Learn how at-risk students are identified automatically
+  </Card>
+  
+  <Card title="AI Learning Paths" href="/features/ai-learning-paths" icon="brain-circuit">
+    Understand how personalized plans drive student success
+  </Card>
+</CardGroup>

@@ -1,80 +1,444 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quickstart Guide"
+description: "Get started with the Kairo Learning Platform in minutes. From account creation to your first AI-powered learning plan."
+icon: "rocket"
 ---
 
-## Get started in three steps
+## Welcome to Kairo
 
-Get your documentation site running locally and make your first customization.
+Kairo is an AI-powered learning platform designed to personalize the educational experience for Riwi bootcamp students. This guide will walk you through setting up your account and generating your first personalized learning plan.
 
-### Step 1: Set up your local environment
+<Note>
+  **What You'll Accomplish:**
+  - Create and verify your account
+  - Complete the onboarding diagnostic
+  - Generate your first AI-powered learning plan
+  - Understand your personalized learning path
+</Note>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+---
 
-### Step 2: Deploy your changes
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+Before you begin, ensure you have:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+- A valid email address
+- Modern web browser (Chrome, Firefox, Safari, or Edge)
+- Access to your email for OTP verification
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+---
 
-### Step 3: Go live
+## Getting Started
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+<Steps>
+  <Step title="Create Your Account">
+    Navigate to the registration page and provide your details:
 
-## Next steps
+    ```bash
+    POST /api/auth/register
+    ```
 
-Now that you have your docs running, explore these key features:
+    **Request Body:**
+    ```json
+    {
+      "email": "student@riwi.io",
+      "password": "SecurePass123!",
+      "fullName": "Maria Garcia",
+      "role": "coder",
+      "clanId": 1
+    }
+    ```
+
+    **Response:**
+    ```json
+    {
+      "message": "Código enviado. Verifica tu correo para completar el registro.",
+      "email": "student@riwi.io"
+    }
+    ```
+
+    <Note>
+      The system uses OTP (One-Time Password) verification for security. Check your email inbox for the 6-digit code.
+    </Note>
+  </Step>
+
+  <Step title="Verify Your Email">
+    Enter the 6-digit code sent to your email:
+
+    ```bash
+    POST /api/auth/verify-otp
+    ```
+
+    **Request Body:**
+    ```json
+    {
+      "email": "student@riwi.io",
+      "code": "123456"
+    }
+    ```
+
+    **Success Response:**
+    ```json
+    {
+      "success": true,
+      "user": {
+        "id": 42,
+        "email": "student@riwi.io",
+        "fullName": "Maria Garcia",
+        "role": "coder",
+        "clanId": 1,
+        "firstLogin": true
+      }
+    }
+    ```
+
+    <Warning>
+      OTP codes expire after 15 minutes. If your code expires, use the "Resend OTP" option.
+    </Warning>
+  </Step>
+
+  <Step title="Complete the Onboarding Diagnostic">
+    New users will be redirected to the onboarding flow. This diagnostic assesses your soft skills to personalize your learning experience.
+
+    **Soft Skills Evaluated:**
+    - Emotional Intelligence
+    - Communication Skills
+    - Critical Thinking
+    - Adaptability
+    - Teamwork
+
+    The diagnostic uses a 5-point scale for each skill area and takes approximately 5-10 minutes to complete.
+
+    <Tip>
+      Answer honestly! The AI uses this data to create learning plans that strengthen your unique skill gaps.
+    </Tip>
+  </Step>
+
+  <Step title="Generate Your First Learning Plan">
+    Once onboarding is complete, navigate to your dashboard and click "Generate Learning Plan".
+
+    ```bash
+    POST /api/ai/generate-plan
+    ```
+
+    **The AI analyzes:**
+    - Your current module progress from Moodle
+    - Soft skills assessment results
+    - Topics you're struggling with
+    - Your learning pace
+
+    **Sample Response:**
+    ```json
+    {
+      "success": true,
+      "plan_id": 789,
+      "plan": {
+        "title": "Personalized Growth Plan - Week 1-4",
+        "targeted_soft_skill": "critical_thinking",
+        "weeks": [
+          {
+            "week": 1,
+            "focus": "JavaScript Fundamentals",
+            "activities": [
+              {
+                "type": "study",
+                "title": "Variables & Data Types",
+                "duration": "2 hours",
+                "description": "Master the basics of JavaScript variables..."
+              },
+              {
+                "type": "practice",
+                "title": "Code Challenge: Array Methods",
+                "duration": "1 hour",
+                "description": "Apply your knowledge to solve real problems..."
+              }
+            ]
+          }
+        ]
+      },
+      "metadata": {
+        "plan_type": "interpretive",
+        "module_name": "Frontend Development",
+        "current_week": 1,
+        "execution_ms": 3421
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Start Learning">
+    Your personalized plan is now active! Access it from your dashboard to:
+
+    - View weekly learning objectives
+    - Complete recommended exercises
+    - Track your progress
+    - Generate focus cards for struggling topics
+
+    <Card title="Pro Tip" icon="lightbulb">
+      The platform generates two types of plans:
+      - **Interpretive Plans**: Created at the start of a module based on your diagnostic
+      - **Analytical Plans**: Generated weekly based on your actual performance data
+    </Card>
+  </Step>
+</Steps>
+
+---
+
+## Alternative: Social Authentication
+
+Kairo supports OAuth login for faster access:
 
 <CardGroup cols={2}>
+  <Card title="GitHub Login" icon="github">
+    ```bash
+    GET /api/auth/github
+    ```
+    
+    Authenticate using your GitHub account. Ideal for developers who want seamless integration.
+  </Card>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Google Login" icon="google">
+    ```bash
+    GET /api/auth/google
+    ```
+    
+    Sign in with your Google account. OAuth users skip OTP verification.
+  </Card>
 </CardGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Social authentication users are automatically marked as verified and can access the platform immediately after OAuth callback.
 </Note>
+
+---
+
+## Understanding Your Dashboard
+
+Once logged in, your coder dashboard displays:
+
+### Active Learning Plan
+Your current 4-week personalized plan with:
+- Week-by-week breakdown
+- Daily learning activities
+- Progress indicators
+- Completion status
+
+### Moodle Integration
+Live sync with your bootcamp performance:
+- Current module and week
+- Average score
+- Struggling topics
+- Completion percentage
+
+### AI-Powered Features
+
+<CodeGroup>
+```javascript Generate Focus Cards
+// POST /api/ai/generate-focus-cards
+// Creates targeted study materials for difficult topics
+
+fetch('/api/ai/generate-focus-cards', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  credentials: 'include'
+})
+.then(res => res.json())
+.then(data => {
+  console.log('Focus cards generated:', data.data);
+});
+```
+
+```javascript Check Session
+// GET /api/auth/check
+// Verify authentication status
+
+fetch('/api/auth/check', {
+  credentials: 'include'
+})
+.then(res => res.json())
+.then(data => {
+  if (data.authenticated) {
+    console.log('User:', data.user);
+  }
+});
+```
+</CodeGroup>
+
+---
+
+## Common Workflows
+
+### Weekly Progress Update
+
+The platform automatically tracks your Moodle performance. Each Monday:
+
+1. System fetches your latest scores and struggling topics
+2. AI generates an **analytical plan** based on actual data
+3. Previous plan is deactivated (accessible in history)
+4. New plan becomes active on your dashboard
+
+### Requesting Help
+
+If you're struggling with a topic:
+
+1. Navigate to **Focus Cards** section
+2. Click **Generate Cards** for struggling topics
+3. Receive AI-generated study materials with:
+   - Concept explanations
+   - Code examples
+   - Practice exercises
+   - Additional resources
+
+### Tracking Progress
+
+View your learning analytics:
+- Moodle score trends
+- Soft skills development
+- Completed vs. pending activities
+- Time spent on each topic
+
+---
+
+## Session Management
+
+Kairo uses secure session-based authentication:
+
+```javascript
+// Session Configuration (backend-node/src/server.js:59-72)
+app.use(
+  session({
+    name: 'riwi.sid',
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: isProduction,      // HTTPS only in production
+      httpOnly: true,             // Prevent XSS attacks
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: isProduction ? 'none' : 'lax'
+    }
+  })
+);
+```
+
+**Logout:**
+```bash
+POST /api/auth/logout
+```
+
+Response:
+```json
+{
+  "message": "Sesión cerrada."
+}
+```
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="OTP Code Not Received">
+    **Solutions:**
+    1. Check your spam/junk folder
+    2. Verify the email address is correct
+    3. Click "Resend OTP" (max 3 times per 10 minutes)
+    4. Wait 5 minutes and try again
+
+    The OTP system uses Nodemailer with Gmail SMTP:
+    ```javascript
+    // backend-node/src/services/email.service.js
+    SMTP_HOST=smtp.gmail.com
+    SMTP_PORT=465
+    SMTP_SECURE=true
+    ```
+  </Accordion>
+
+  <Accordion title="Session Expires Too Quickly">
+    Sessions last 24 hours. If you're experiencing premature logouts:
+    
+    1. Ensure cookies are enabled in your browser
+    2. Check if you're using private/incognito mode
+    3. Verify your system time is correct
+    4. Clear browser cache and try again
+  </Accordion>
+
+  <Accordion title="Learning Plan Not Generating">
+    Plans require:
+    1. Completed onboarding diagnostic
+    2. Active Moodle enrollment
+    3. Python AI service running
+
+    Check AI service health:
+    ```bash
+    GET /api/ai/health
+    ```
+
+    Expected response:
+    ```json
+    {
+      "node": "ok",
+      "python": {
+        "status": "online",
+        "service": "Kairo AI Engine",
+        "model": "llama-3.3-70b-versatile",
+        "embeddings": "all-MiniLM-L6-v2"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Can't Access Dashboard After Login">
+    Ensure you completed the onboarding flow. First-time users with `firstLogin: true` are automatically redirected to `/onboarding.html`.
+
+    Update your onboarding status:
+    ```bash
+    PATCH /api/auth/complete-onboarding
+    ```
+
+    Request body:
+    ```json
+    {
+      "clanId": 1
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="sitemap" href="/architecture">
+    Learn how Kairo's hybrid Node.js + Python architecture works
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/auth/overview">
+    Explore all available endpoints and integration options
+  </Card>
+  
+  <Card title="Team Leader Guide" icon="users" href="/team-leaders/dashboard">
+    Manage your clan and track student progress
+  </Card>
+  
+  <Card title="AI Features" icon="brain" href="/features/ai-learning-paths">
+    Deep dive into personalized learning and analytics
+  </Card>
+</CardGroup>
+
+---
+
+## Need Help?
+
+If you encounter issues not covered in this guide:
+
+- **Technical Issues**: Contact your Team Leader
+- **Account Problems**: Email support@riwi.io
+- **Feature Requests**: Submit via the in-app feedback form
+
+<Tip>
+  The platform is actively developed by the Kairo team at Riwi. Your feedback helps us improve the learning experience for all students!
+</Tip>

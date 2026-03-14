@@ -1,0 +1,407 @@
+---
+title: 'AI-Powered Reports'
+description: 'Generate comprehensive performance reports with AI analysis and recommendations'
+icon: 'file-pdf'
+---
+
+## Overview
+
+Kairo's reporting system combines raw data with AI-generated insights to create actionable reports for Team Leaders. Reports can be generated for individual students or entire clans.
+
+<Note>
+  Reports are powered by **Groq's Llama-3.3-70b** model, providing fast, context-aware analysis.
+</Note>
+
+---
+
+## AI Clan Report Generation
+
+### Triggering a Report
+
+**Endpoint:** `POST /api/ia/generate-report`
+
+**Authentication:** Team Leader role required
+
+### How It Works
+
+<Steps>
+  <Step title="Data Collection">
+    Node.js backend aggregates metrics for all students in your clan
+  </Step>
+  <Step title="Payload Construction">
+    Prepares summary statistics including average scores, risk counts, and struggling topics
+  </Step>
+  <Step title="AI Analysis">
+    Sends data to Python microservice which invokes Groq AI for report generation
+  </Step>
+  <Step title="Database Storage">
+    Completed report is saved to `ai_reports` table and linked to your clan
+  </Step>
+  <Step title="Notification">
+    You receive a notification when the report is ready to view
+  </Step>
+</Steps>
+
+### Request Payload
+
+The system automatically constructs this payload (iaControllers.js:143):
+
+```json
+{
+  "clan": "lambda",
+  "tl_id": 42,
+  "total_coders": 25,
+  "average_score": 78.4,
+  "high_risk_count": 3,
+  "top_struggling_topics": ["Async/Await", "React Hooks", "SQL Joins"],
+  "soft_skills_summary": {
+    "autonomy": 3.8,
+    "time_management": 3.5,
+    "problem_solving": 4.1,
+    "communication": 3.9,
+    "teamwork": 4.2
+  }
+}
+```
+
+---
+
+## AI Report Structure
+
+The AI generates a JSON report with the following sections:
+
+### 1. Report Metadata
+
+```json
+{
+  "report_title": "Clan Lambda — Performance Report",
+  "generated_date": "March 14, 2026",
+  "risk_level": "medium"
+}
+```
+
+**Risk Levels:**
+- **low** - Clan is performing well, minimal intervention needed
+- **medium** - Some concerns, targeted support recommended
+- **high** - Significant challenges, immediate action required
+- **critical** - Severe issues, escalate to program management
+
+### 2. Current State Summary
+
+<Accordion title="Example Summary">
+  > "Clan Lambda consists of 25 coders currently averaging 78.4% in Moodle assessments. The majority of students are progressing through week 4 of the curriculum. Soft skills assessments show strong teamwork (4.2/5) and problem-solving (4.1/5), with room for improvement in time management (3.5/5). Three students are flagged as high or critical risk."
+</Accordion>
+
+### 3. Main Risks and Concerns
+
+<Accordion title="Example Risks Section">
+  > "The primary concern is the cluster of students struggling with asynchronous JavaScript concepts (Async/Await), which appears in 40% of low-performing students. Additionally, 12% of the clan is at high risk of falling behind due to cumulative gaps in foundational topics. Time management scores below 3.5 correlate with students who have incomplete weekly modules."
+</Accordion>
+
+### 4. Concrete Recommendations
+
+The AI provides 3-5 specific, actionable recommendations:
+
+```json
+{
+  "recommendations": "Organize a focused workshop on Async/Await...",
+  "action_items": [
+    "Host a 2-hour Async/Await workshop by Friday",
+    "Implement daily check-ins for 3 high-risk students",
+    "Create peer-study groups pairing strong and struggling learners",
+    "Review time management strategies in next 1:1 sessions",
+    "Add supplementary resources for SQL Joins to Moodle"
+  ]
+}
+```
+
+---
+
+## Backend Implementation
+
+### Python Report Generator
+
+**File:** `backend-python/app/routers/reports.py`
+
+<Accordion title="AI Prompt Template (reports.py:50)">
+  ```python
+  prompt = f"""
+  You are an educational data analyst for Riwi coding bootcamp.
+  Write a professional report for the Team Leader of clan '{req.clan}'.
+
+  DATA:
+  - Total coders: {req.total_coders}
+  - Average score: {req.average_score:.1f}/100
+  - High/critical risk coders: {req.high_risk_count}
+  - Top struggling topics: {', '.join(req.top_struggling_topics)}
+  - Soft skills averages: {json.dumps(req.soft_skills_summary)}
+
+  Write 3 sections:
+  1. Current state summary
+  2. Main risks and concerns
+  3. Concrete recommendations (3-5 action items)
+
+  Return ONLY valid JSON with no markdown, no backticks:
+  {{
+      "report_title": "Clan {req.clan} — Performance Report",
+      "generated_date": "{datetime.now().strftime('%B %d, %Y')}",
+      "risk_level": "low|medium|high|critical",
+      "summary": "paragraph about current state",
+      "risks": "paragraph about risks",
+      "recommendations": "paragraph about what the TL should do",
+      "action_items": ["item 1", "item 2", "item 3"]
+  }}
+  """
+  ```
+</Accordion>
+
+### Groq API Configuration
+
+```python
+completion = groq_client.chat.completions.create(
+    model=os.getenv("MODEL_NAME", "llama-3.3-70b-versatile"),
+    messages=[
+        {"role": "system", "content": "You are an educational analyst."},
+        {"role": "user", "content": prompt}
+    ],
+    max_tokens=1000,
+    temperature=0.6
+)
+```
+
+**Temperature = 0.6** balances creativity with factual consistency.
+
+---
+
+## PDF Clan Report Generation
+
+### Generate Downloadable PDF
+
+**Endpoint:** `GET /generate-pdf/{clan}`
+
+**Example:** `GET /generate-pdf/lambda`
+
+### What's Included
+
+<Steps>
+  <Step title="Cover Page">
+    Clan name, generation date, and Kairo branding
+  </Step>
+  <Step title="Overview Section">
+    Total coders, average score, diagnostics completed
+  </Step>
+  <Step title="Individual Coder Profiles">
+    For each student: name, email, score, week, soft skills breakdown
+  </Step>
+  <Step title="Visual Highlights">
+    Color-coded risk indicators and missing diagnostics warnings
+  </Step>
+</Steps>
+
+### PDF Structure Example
+
+```
+╔═══════════════════════════════════════╗
+║  Clan LAMBDA — Performance Report     ║
+║  Generated by Kairo AI · March 14, 2026║
+╚═══════════════════════════════════════╝
+
+Overview
+────────
+Total coders: 25
+Average score: 78.4/100
+Diagnostics completed: 23/25
+
+Coder Profiles
+──────────────
+
+María González
+Email: maria.gonzalez@example.com
+Avg score: 82.5  |  Week: 4
+Soft skills — Autonomy: 4.2  Time Mgmt: 3.8  
+Problem Solving: 4.5  Communication: 4.0  Teamwork: 4.3
+Learning style: Kinesthetic
+
+────────────────────────────────────────
+
+[...additional coder profiles...]
+```
+
+### PDF Generation Code
+
+**Library:** `fpdf2` (pure Python, no system dependencies)
+
+<Accordion title="PDF Builder Implementation (reports.py:177)">
+  ```python
+  def _build_pdf(clan: str, coders: list, skills_map: dict, progress_map: dict) -> bytes:
+      pdf = FPDF()
+      pdf.set_auto_page_break(auto=True, margin=15)
+      pdf.add_page()
+
+      # Header
+      pdf.set_font("Helvetica", "B", 20)
+      pdf.set_fill_color(109, 40, 217)  # Kairo purple
+      pdf.set_text_color(255, 255, 255)
+      pdf.cell(0, 14, f"  Clan {clan.upper()} — Performance Report", fill=True, ln=True)
+
+      # Overview stats
+      scores = [progress_map.get(c["id"], {}).get("average_score", 0) for c in coders]
+      avg = sum(scores) / len(scores) if scores else 0
+
+      pdf.set_font("Helvetica", "", 11)
+      pdf.cell(0, 7, f"Total coders: {len(coders)}", ln=True)
+      pdf.cell(0, 7, f"Average score: {avg:.1f}/100", ln=True)
+
+      # Individual coder sections
+      for coder in coders:
+          pdf.set_font("Helvetica", "B", 11)
+          pdf.cell(0, 8, coder["full_name"], ln=True)
+          # ... render soft skills and progress data ...
+
+      return bytes(pdf.output())
+  ```
+</Accordion>
+
+---
+
+## Individual Student PDF Reports
+
+You can also generate single-student reports directly from the dashboard.
+
+### Frontend Implementation
+
+**File:** `frontend/assets/js/dashboardTL.js:362`
+
+Click **"Download PDF Report"** in the student detail panel to trigger client-side PDF generation using `jsPDF`.
+
+### What's Included
+
+- Full name, email, clan
+- Average score and current week
+- Learning style diagnosis
+- All 5 soft skills with ratings
+- Risk flag status
+- Generation timestamp
+
+**File naming:** `reporte-{id}-{name}.pdf`
+
+---
+
+## Accessing Generated Reports
+
+### Database Table: `ai_reports`
+
+```sql
+CREATE TABLE ai_reports (
+  id SERIAL PRIMARY KEY,
+  target_type VARCHAR(50),      -- 'clan' or 'individual'
+  target_id INT,                -- TL user ID or coder ID
+  summary_text TEXT,
+  risk_level VARCHAR(20),
+  recommendations TEXT,
+  clan_id VARCHAR(50),
+  viewed_by_tl BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Querying Your Reports
+
+```javascript
+const { data: reports } = await supabase
+  .from('ai_reports')
+  .select('*')
+  .eq('target_id', tlUserId)
+  .eq('target_type', 'clan')
+  .order('created_at', { ascending: false })
+  .limit(10);
+```
+
+---
+
+## AI Generation Logging
+
+Every report generation is logged for auditing and debugging.
+
+**Table:** `ai_generation_log`
+
+```sql
+INSERT INTO ai_generation_log (
+  agent_type,
+  input_payload,
+  output_payload,
+  model_name,
+  success
+) VALUES (
+  'report_generator',
+  '{"clan": "lambda", "total_coders": 25}',
+  '{"report_title": "...", "risk_level": "medium"}',
+  'llama-3.3-70b-versatile',
+  true
+);
+```
+
+---
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Weekly Report Cadence" icon="calendar-week">
+    Generate a new clan report every Monday to guide the week's priorities
+  </Card>
+  <Card title="Compare Over Time" icon="chart-line">
+    Save reports to track if interventions are improving clan performance
+  </Card>
+  <Card title="Share with Stakeholders" icon="share-nodes">
+    Export PDFs to share progress with program directors or sponsors
+  </Card>
+  <Card title="Act on Recommendations" icon="list-check">
+    Treat AI action items as a starting point - adapt to your clan's unique needs
+  </Card>
+</CardGroup>
+
+---
+
+## Troubleshooting
+
+<Accordion title="Report generation fails with 'AI returned invalid JSON'">
+  **Cause:** The Groq model occasionally returns markdown-wrapped JSON.
+
+  **Solution:** The code strips markdown fences automatically (reports.py:89):
+  ```python
+  if raw.startswith("```"):
+      raw = raw.split("```")[1]
+      if raw.startswith("json"):
+          raw = raw[4:]
+  report = json.loads(raw)
+  ```
+
+  If errors persist, check the `ai_generation_log` table for the raw output.
+</Accordion>
+
+<Accordion title="PDF generation fails with 404">
+  **Cause:** No coders found in the specified clan.
+
+  **Solution:** Verify the clan name matches the database exactly (case-sensitive).
+  ```python
+  coders = supabase.table("users").select("*").eq("clan", clan).eq("role", "coder").execute()
+  if not coders.data:
+      raise HTTPException(status_code=404, detail=f"No coders found in clan '{clan}'")
+  ```
+</Accordion>
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Dashboard" icon="gauge-high" href="/team-leaders/dashboard">
+    Return to your main dashboard
+  </Card>
+  <Card title="Analytics" icon="chart-simple" href="/team-leaders/analytics">
+    Explore performance metrics in detail
+  </Card>
+  <Card title="Interventions" icon="user-doctor" href="/team-leaders/interventions">
+    Implement the recommendations from AI reports
+  </Card>
+</CardGroup>

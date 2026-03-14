@@ -1,0 +1,428 @@
+---
+title: 'Student Profile & Dashboard'
+description: 'Access student profile data, dashboard metrics, and learning progress'
+---
+
+## Authentication
+
+All student endpoints require:
+- **Session-based authentication** via `req.session.userId`
+- **Role:** `coder`
+- **Onboarding status:** Must be completed (`first_login = false`)
+
+If onboarding is incomplete, endpoints return `403 Forbidden` with redirect to `/onboarding`.
+
+---
+
+## Get Dashboard
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.kairo.com/api/coder/dashboard \
+  -H "Cookie: session=abc123..."
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/dashboard', {
+  credentials: 'include'
+});
+const data = await response.json();
+```
+</CodeGroup>
+
+**GET** `/api/coder/dashboard`
+
+Returns comprehensive dashboard data including user profile, soft skills assessment, learning progress, active plans, notifications, and risk flags.
+
+### Response
+
+<ResponseField name="user" type="object">
+  Student profile and current module information
+  
+  <ResponseField name="fullName" type="string">
+    Student's full name
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    Student's email address
+  </ResponseField>
+  
+  <ResponseField name="clanId" type="integer">
+    Assigned clan identifier
+  </ResponseField>
+  
+  <ResponseField name="role" type="string">
+    User role (always `"coder"` for students)
+  </ResponseField>
+  
+  <ResponseField name="moduleId" type="integer">
+    Current module ID
+  </ResponseField>
+  
+  <ResponseField name="moduleName" type="string">
+    Current module name (e.g., "Bases de Datos")
+  </ResponseField>
+  
+  <ResponseField name="moduleTotalWeeks" type="integer">
+    Total weeks in current module
+  </ResponseField>
+  
+  <ResponseField name="isModuleCritical" type="boolean">
+    Whether the module is marked as critical
+  </ResponseField>
+  
+  <ResponseField name="learningStyleCache" type="string">
+    Cached learning style (e.g., "visual", "kinesthetic")
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="softSkills" type="object | null">
+  Soft skills assessment results (rated 1-5)
+  
+  <ResponseField name="autonomy" type="number">
+    Autonomy score (1-5)
+  </ResponseField>
+  
+  <ResponseField name="timeManagement" type="number">
+    Time management score (1-5)
+  </ResponseField>
+  
+  <ResponseField name="problemSolving" type="number">
+    Problem-solving score (1-5)
+  </ResponseField>
+  
+  <ResponseField name="communication" type="number">
+    Communication score (1-5)
+  </ResponseField>
+  
+  <ResponseField name="teamwork" type="number">
+    Teamwork score (1-5)
+  </ResponseField>
+  
+  <ResponseField name="learningStyle" type="string">
+    Identified learning style
+  </ResponseField>
+  
+  <ResponseField name="assessedAt" type="string">
+    ISO timestamp of assessment
+  </ResponseField>
+  
+  <ResponseField name="average" type="number">
+    Average of all soft skills (1-5, rounded to 2 decimals)
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="progress" type="object">
+  Moodle learning progress tracking
+  
+  <ResponseField name="currentWeek" type="number">
+    Current week number (defaults to 1 for new students)
+  </ResponseField>
+  
+  <ResponseField name="averageScore" type="number | null">
+    Average score across completed activities (null if no data)
+  </ResponseField>
+  
+  <ResponseField name="strugglingTopics" type="array">
+    Array of topics where student is struggling
+  </ResponseField>
+  
+  <ResponseField name="weeksCompleted" type="array">
+    Array of completed week objects
+  </ResponseField>
+  
+  <ResponseField name="weeksCompletedCount" type="number">
+    Count of completed weeks
+  </ResponseField>
+  
+  <ResponseField name="updatedAt" type="string | null">
+    ISO timestamp of last progress update
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="activePlan" type="object | null">
+  Currently active AI-generated learning plan
+  
+  <ResponseField name="id" type="integer">
+    Plan ID
+  </ResponseField>
+  
+  <ResponseField name="targetedSoftSkill" type="string">
+    Soft skill being targeted (e.g., "autonomy")
+  </ResponseField>
+  
+  <ResponseField name="planType" type="string">
+    Plan type (e.g., "interpretive", "adaptive")
+  </ResponseField>
+  
+  <ResponseField name="generatedAt" type="string">
+    ISO timestamp when plan was generated
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="notifications" type="object">
+  Team Leader feedback and notifications
+  
+  <ResponseField name="unread" type="number">
+    Count of unread notifications
+  </ResponseField>
+  
+  <ResponseField name="items" type="array">
+    Array of notification objects (last 5)
+    
+    <ResponseField name="id" type="integer">
+      Feedback ID
+    </ResponseField>
+    
+    <ResponseField name="text" type="string">
+      Feedback message text
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Feedback type (e.g., "praise", "concern", "suggestion")
+    </ResponseField>
+    
+    <ResponseField name="tlName" type="string">
+      Team Leader's full name
+    </ResponseField>
+    
+    <ResponseField name="createdAt" type="string">
+      ISO timestamp
+    </ResponseField>
+    
+    <ResponseField name="isRead" type="boolean">
+      Whether feedback has been read
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="riskFlags" type="array">
+  Active risk flags (max 3 most recent)
+  
+  <ResponseField name="level" type="string">
+    Risk level (e.g., "high", "medium", "low")
+  </ResponseField>
+  
+  <ResponseField name="reason" type="string">
+    Description of risk
+  </ResponseField>
+  
+  <ResponseField name="detectedAt" type="string">
+    ISO timestamp when risk was detected
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="performanceTests" type="array">
+  Recent performance test results (max 3)
+  
+  <ResponseField name="score" type="number">
+    Test score
+  </ResponseField>
+  
+  <ResponseField name="status" type="string">
+    Test status (e.g., "passed", "failed", "pending")
+  </ResponseField>
+  
+  <ResponseField name="moduleName" type="string">
+    Module name for the test
+  </ResponseField>
+  
+  <ResponseField name="takenAt" type="string">
+    ISO timestamp when test was taken
+  </ResponseField>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "user": {
+    "fullName": "María García",
+    "email": "maria.garcia@kairo.com",
+    "clanId": 3,
+    "role": "coder",
+    "moduleId": 4,
+    "moduleName": "Bases de Datos",
+    "moduleTotalWeeks": 12,
+    "isModuleCritical": true,
+    "learningStyleCache": "visual"
+  },
+  "softSkills": {
+    "autonomy": 4,
+    "timeManagement": 3,
+    "problemSolving": 5,
+    "communication": 4,
+    "teamwork": 4,
+    "learningStyle": "visual",
+    "assessedAt": "2026-03-01T10:30:00Z",
+    "average": 4.0
+  },
+  "progress": {
+    "currentWeek": 5,
+    "averageScore": 87.5,
+    "strugglingTopics": ["SQL Joins", "Normalization"],
+    "weeksCompleted": [1, 2, 3, 4],
+    "weeksCompletedCount": 4,
+    "updatedAt": "2026-03-14T08:00:00Z"
+  },
+  "activePlan": {
+    "id": 42,
+    "targetedSoftSkill": "time_management",
+    "planType": "adaptive",
+    "generatedAt": "2026-03-10T12:00:00Z"
+  },
+  "notifications": {
+    "unread": 2,
+    "items": [
+      {
+        "id": 101,
+        "text": "Great progress on your SQL exercises!",
+        "type": "praise",
+        "tlName": "Carlos Rodríguez",
+        "createdAt": "2026-03-13T14:20:00Z",
+        "isRead": false
+      }
+    ]
+  },
+  "riskFlags": [],
+  "performanceTests": [
+    {
+      "score": 85,
+      "status": "passed",
+      "moduleName": "Bases de Datos",
+      "takenAt": "2026-03-12T16:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## Get Module Milestones
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.kairo.com/api/coder/milestones \
+  -H "Cookie: session=abc123..."
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/milestones', {
+  credentials: 'include'
+});
+const { milestones } = await response.json();
+```
+</CodeGroup>
+
+**GET** `/api/coder/milestones`
+
+Retrieves weekly milestones with scores across all modules for the authenticated student.
+
+### Response
+
+<ResponseField name="milestones" type="array">
+  Array of milestone objects ordered by week number
+  
+  <ResponseField name="module_name" type="string">
+    Module name
+  </ResponseField>
+  
+  <ResponseField name="week_number" type="number">
+    Week number within module
+  </ResponseField>
+  
+  <ResponseField name="week_name" type="string">
+    Week title/name
+  </ResponseField>
+  
+  <ResponseField name="average_score" type="number">
+    Average score for that week
+  </ResponseField>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "milestones": [
+    {
+      "module_name": "Bases de Datos",
+      "week_number": 1,
+      "week_name": "Introduction to SQL",
+      "average_score": 92
+    },
+    {
+      "module_name": "Bases de Datos",
+      "week_number": 2,
+      "week_name": "Database Design",
+      "average_score": 88
+    }
+  ]
+}
+```
+
+---
+
+## Mark Feedback as Read
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.kairo.com/api/coder/feedback/101/read \
+  -H "Cookie: session=abc123..."
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/feedback/101/read', {
+  method: 'PATCH',
+  credentials: 'include'
+});
+const data = await response.json();
+```
+</CodeGroup>
+
+**PATCH** `/api/coder/feedback/:id/read`
+
+Marks a Team Leader feedback notification as read and sends a real-time notification to the TL.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Feedback ID to mark as read
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the operation succeeded
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "success": true,
+  "message": "Feedback marked as read"
+}
+```
+
+### Error Responses
+
+<ResponseField name="error" type="string">
+  Error message when feedback not found or operation fails
+</ResponseField>
+
+```json 404
+{
+  "error": "Feedback not found"
+}
+```
+
+```json 500
+{
+  "error": "Failed to mark feedback as read"
+}
+```

@@ -1,0 +1,572 @@
+---
+title: AI Configuration
+description: Configure Groq API and AI models for personalized learning plans
+---
+
+Kairo uses AI to generate personalized learning plans, detect at-risk students, and provide intelligent recommendations. This guide covers configuring the AI models and understanding the AI architecture.
+
+---
+
+## AI Architecture Overview
+
+Kairo's AI system consists of:
+
+- **LLM (Large Language Model)**: Qwen2.5-7B-Instruct via Groq API
+- **Embeddings Model**: all-MiniLM-L6-v2 (384-dimensional vectors)
+- **Orchestration**: LangChain for prompt management and JSON validation
+- **Vector Storage**: Sentence embeddings for semantic search
+
+### AI Agents
+
+Kairo implements three specialized AI agents:
+
+1. **Learning Plan Generator**: Creates personalized 4-week study paths
+2. **Report Generator**: Produces analytics for Team Leaders
+3. **Risk Detector**: Identifies students at risk of falling behind
+
+---
+
+## Groq API Setup
+
+<Steps>
+  <Step title="Create Groq Account">
+    1. Visit [Groq Console](https://console.groq.com)
+    2. Sign up for a free account
+    3. Verify your email address
+  </Step>
+
+  <Step title="Generate API Key">
+    1. Navigate to [API Keys](https://console.groq.com/keys)
+    2. Click "Create API Key"
+    3. Name your key (e.g., "Kairo Development")
+    4. Copy the generated key (starts with `gsk_`)
+  </Step>
+
+  <Step title="Add to Environment">
+    Add the API key to `backend-python/.env`:
+
+    ```env
+    OPENAI_API_KEY=gsk_your_api_key_here
+    ```
+
+    <Note>
+      Groq uses OpenAI-compatible API format, so the variable is named `OPENAI_API_KEY`.
+    </Note>
+  </Step>
+</Steps>
+
+<Warning>
+  **Free Tier Limits:** Groq's free tier includes:
+  - Rate limits: ~30 requests/minute
+  - Daily quotas may apply
+  - For production, consider upgrading to a paid plan
+</Warning>
+
+---
+
+## AI Model Configuration
+
+### Selecting a Model
+
+Kairo supports multiple Groq models. Configure via `MODEL_NAME` in `backend-python/.env`:
+
+```env
+MODEL_NAME=llama-3.3-70b-versatile
+```
+
+### Available Models
+
+<Tabs>
+  <Tab title="Recommended">
+    **llama-3.3-70b-versatile** (Default)
+    - Best balance of speed and quality
+    - Context window: 8,192 tokens
+    - Excellent for educational content
+    - Fast inference times
+
+    ```env
+    MODEL_NAME=llama-3.3-70b-versatile
+    ```
+  </Tab>
+
+  <Tab title="Original">
+    **qwen2.5-7b-instruct**
+    - Original Kairo model (from README)
+    - Smaller, faster model
+    - Context window: 32,768 tokens
+    - Good for rapid prototyping
+
+    ```env
+    MODEL_NAME=qwen2.5-7b-instruct
+    ```
+  </Tab>
+
+  <Tab title="High Capacity">
+    **mixtral-8x7b-32768**
+    - Larger context window (32K tokens)
+    - Better for complex reasoning
+    - Slightly slower inference
+
+    ```env
+    MODEL_NAME=mixtral-8x7b-32768
+    ```
+  </Tab>
+
+  <Tab title="Fast">
+    **llama-3.1-8b-instant**
+    - Ultra-fast responses
+    - Lower quality than 70B models
+    - Good for real-time chat
+
+    ```env
+    MODEL_NAME=llama-3.1-8b-instant
+    ```
+  </Tab>
+</Tabs>
+
+### Model Comparison
+
+| Model | Speed | Quality | Context | Use Case |
+|-------|-------|---------|---------|----------|
+| llama-3.3-70b-versatile | Fast | Excellent | 8K | **Default** - Best overall |
+| qwen2.5-7b-instruct | Very Fast | Good | 32K | Original Kairo model |
+| mixtral-8x7b-32768 | Medium | Excellent | 32K | Long documents |
+| llama-3.1-8b-instant | Ultra Fast | Good | 8K | Real-time chat |
+
+---
+
+## Embeddings Configuration
+
+### all-MiniLM-L6-v2 Model
+
+Kairo uses the `all-MiniLM-L6-v2` model from Sentence Transformers for text embeddings:
+
+- **Dimensions**: 384
+- **Purpose**: Semantic search and resource matching
+- **Speed**: Fast (CPU-optimized)
+- **Storage**: Local (automatically downloaded)
+
+### Installation
+
+The embeddings model is automatically downloaded when you install dependencies:
+
+```bash
+pip install sentence-transformers
+```
+
+### Manual Download
+
+If you experience issues, manually download the model:
+
+```python
+from sentence_transformers import SentenceTransformer
+
+# This will download the model to ~/.cache/torch/sentence_transformers/
+model = SentenceTransformer('all-MiniLM-L6-v2')
+```
+
+### Verification
+
+Check if embeddings are loaded correctly:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Response should show:
+
+```json
+{
+  "embeddings": "all-MiniLM-L6-v2"
+}
+```
+
+<Note>
+  If embeddings fail to load, the AI service will still work but semantic search features will be limited.
+</Note>
+
+---
+
+## AI Service Architecture
+
+### Learning Plan Generation
+
+The AI generates personalized 4-week learning plans based on:
+
+1. **Soft Skills Assessment**
+   - Autonomy level (1-5)
+   - Time management (1-5)
+   - Problem-solving ability (1-5)
+   - Communication skills (1-5)
+   - Learning style (visual, auditory, kinesthetic, mixed)
+
+2. **Academic Performance**
+   - Current Moodle scores
+   - Struggling topics
+   - Weekly progress
+
+3. **Struggling Topics**
+   - Topics the student has flagged as difficult
+
+### Plan Structure (6 Cards)
+
+Each plan consists of **6 focus cards** prioritized as:
+
+- **2 High Priority** - Most critical weaknesses
+- **2 Medium Priority** - Important areas for improvement
+- **2 Low Priority** - Enhancement opportunities
+
+### Activity Types
+
+The AI generates three types of activities:
+
+1. **Guided** - Step-by-step tutorials with heavy support
+2. **Semi-Guided** - Structured tasks with some autonomy
+3. **Autonomous** - Independent projects for self-directed learning
+
+Activity type is selected based on the student's autonomy score.
+
+---
+
+## API Endpoints
+
+### Generate Learning Plan
+
+```http
+POST http://localhost:8000/generate-plan
+Content-Type: application/json
+
+{
+  "coder_id": 123,
+  "soft_skills": {
+    "autonomy": 3,
+    "time_management": 4,
+    "problem_solving": 3,
+    "learning_style": "visual"
+  },
+  "moodle_data": {
+    "current_week": 5,
+    "average_score": 75,
+    "struggling_topics": ["CSS Grid", "Async JavaScript"]
+  },
+  "struggling_topics": ["CSS Grid", "Event Loop"]
+}
+```
+
+### Generate Focus Cards
+
+```http
+POST http://localhost:8000/generate-focus-cards
+Content-Type: application/json
+
+{
+  "coder_id": 123,
+  "plan_content": {...}
+}
+```
+
+### Chat with AI
+
+```http
+POST http://localhost:8000/chat/ask
+Content-Type: application/json
+
+{
+  "coder_id": 123,
+  "message": "How can I improve my understanding of async/await?"
+}
+```
+
+### Generate Team Leader Report
+
+```http
+POST http://localhost:8000/generate-report
+Content-Type: application/json
+
+{
+  "target_type": "coder",
+  "target_id": 123
+}
+```
+
+---
+
+## Prompt Engineering
+
+Kairo uses carefully crafted prompts to ensure consistent, high-quality outputs:
+
+### Learning Plan Prompt Structure
+
+```python
+prompt = f"""
+You are an expert educational AI for the Riwi Learning Platform.
+
+Student Profile:
+- Autonomy: {autonomy}/5
+- Time Management: {time_management}/5
+- Learning Style: {learning_style}
+
+Current Status:
+- Module: {module_name}
+- Average Score: {average_score}%
+- Struggling Topics: {struggling_topics}
+
+Generate a personalized 4-week learning plan with 6 focus cards.
+Prioritize: 2 high, 2 medium, 2 low.
+Adapt activity types based on autonomy level.
+
+Output as JSON:
+{{
+  "cards": [
+    {{
+      "title": "...",
+      "priority": "high",
+      "activities": [...]
+    }}
+  ]
+}}
+"""
+```
+
+### JSON Output Validation
+
+LangChain validates that AI outputs match the expected schema:
+
+```python
+from langchain.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
+
+class LearningCard(BaseModel):
+    title: str = Field(description="Card title")
+    priority: str = Field(description="Priority level: high, medium, low")
+    activities: list[str] = Field(description="List of activities")
+
+class LearningPlan(BaseModel):
+    cards: list[LearningCard] = Field(description="6 focus cards")
+
+parser = PydanticOutputParser(pydantic_object=LearningPlan)
+```
+
+---
+
+## Monitoring & Logging
+
+### AI Generation Log
+
+All AI operations are logged to the `ai_generation_log` table:
+
+```sql
+SELECT 
+  agent_type,
+  model_name,
+  execution_time_ms,
+  success,
+  error_message
+FROM ai_generation_log
+WHERE coder_id = 123
+ORDER BY generated_at DESC
+LIMIT 10;
+```
+
+### Performance Metrics
+
+```python
+import time
+
+start_time = time.time()
+# AI generation code
+execution_time = (time.time() - start_time) * 1000
+
+# Log to database
+log_entry = {
+    "agent_type": "learning_plan",
+    "execution_time_ms": execution_time,
+    "model_name": os.getenv("MODEL_NAME"),
+    "success": True
+}
+```
+
+### Health Check
+
+Monitor AI service health:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Response:
+
+```json
+{
+  "status": "online",
+  "service": "Kairo AI Engine",
+  "model": "llama-3.3-70b-versatile",
+  "embeddings": "all-MiniLM-L6-v2",
+  "environment": "development"
+}
+```
+
+---
+
+## Cost Optimization
+
+### Reduce API Calls
+
+1. **Cache Results**: Store generated plans and reuse when appropriate
+2. **Batch Processing**: Generate multiple plans in a single session
+3. **Rate Limiting**: Implement user-level rate limits
+
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=100)
+def generate_plan(coder_id: int, context_hash: str):
+    # Only regenerate if context changes
+    pass
+```
+
+### Token Management
+
+```python
+def estimate_tokens(text: str) -> int:
+    # Rough estimate: 1 token ≈ 4 characters
+    return len(text) // 4
+
+def truncate_context(context: str, max_tokens: int = 4000) -> str:
+    estimated = estimate_tokens(context)
+    if estimated > max_tokens:
+        # Truncate to fit within token limit
+        max_chars = max_tokens * 4
+        return context[:max_chars]
+    return context
+```
+
+### Model Selection Strategy
+
+```python
+def select_model(task_complexity: str) -> str:
+    if task_complexity == "simple":
+        return "llama-3.1-8b-instant"  # Fast, cheap
+    elif task_complexity == "complex":
+        return "llama-3.3-70b-versatile"  # Higher quality
+    else:
+        return "mixtral-8x7b-32768"  # Long context
+```
+
+---
+
+## Testing AI Integration
+
+### Test Learning Plan Generation
+
+```python
+import requests
+
+response = requests.post(
+    "http://localhost:8000/generate-plan",
+    json={
+        "coder_id": 1,
+        "soft_skills": {
+            "autonomy": 3,
+            "time_management": 4,
+            "problem_solving": 3,
+            "learning_style": "visual"
+        },
+        "moodle_data": {
+            "current_week": 5,
+            "average_score": 75,
+            "struggling_topics": ["CSS Grid"]
+        },
+        "struggling_topics": ["CSS Grid", "Flexbox"]
+    }
+)
+
+print(response.json())
+```
+
+### Test Embeddings
+
+```python
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+sentences = [
+    "Learn CSS Grid layout",
+    "Master Flexbox positioning",
+    "Build responsive designs"
+]
+
+embeddings = model.encode(sentences)
+print(f"Embedding shape: {embeddings.shape}")  # Should be (3, 384)
+```
+
+### Load Testing
+
+```bash
+# Install Apache Bench
+sudo apt-get install apache2-utils
+
+# Test 100 requests, 10 concurrent
+ab -n 100 -c 10 -T 'application/json' -p test_payload.json http://localhost:8000/generate-plan
+```
+
+---
+
+## Troubleshooting
+
+### "API Key Invalid"
+
+- Verify your Groq API key starts with `gsk_`
+- Check that the key is active in Groq Console
+- Ensure no extra whitespace in `.env`
+
+### "Rate Limit Exceeded"
+
+- Implement exponential backoff:
+
+```python
+import time
+from groq import RateLimitError
+
+for attempt in range(5):
+    try:
+        response = client.chat.completions.create(...)
+        break
+    except RateLimitError:
+        wait_time = 2 ** attempt
+        time.sleep(wait_time)
+```
+
+### "Embeddings Model Not Found"
+
+```bash
+# Clear cache and reinstall
+rm -rf ~/.cache/torch/sentence_transformers/
+pip install --upgrade sentence-transformers
+```
+
+### "JSON Validation Failed"
+
+- Check prompt template format
+- Verify Pydantic schema matches expected output
+- Add retry logic for malformed responses
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI API Endpoints" icon="code" href="/api/ai/generate-plan">
+    Explore AI API endpoints
+  </Card>
+  <Card title="Environment Setup" icon="gear" href="/setup/environment-variables">
+    Configure environment variables
+  </Card>
+  <Card title="AI Learning Paths" icon="brain" href="/features/ai-learning-paths">
+    Learn about AI-powered learning paths
+  </Card>
+  <Card title="Team Leader Analytics" icon="chart-line" href="/features/analytics-dashboard">
+    Monitor AI performance and student progress
+  </Card>
+</CardGroup>

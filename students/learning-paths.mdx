@@ -1,0 +1,257 @@
+---
+title: "AI-Generated Learning Paths"
+description: "Discover how Kairo creates personalized 20-day complementary plans to strengthen your soft skills"
+icon: "route"
+---
+
+## What Are Learning Paths?
+
+Kairo's AI generates personalized **20-day complementary plans** designed to strengthen your weakest soft skill while you progress through your technical modules. These plans run alongside your regular coursework, providing targeted activities to improve areas like autonomy, time management, or problem-solving.
+
+## How Learning Paths Work
+
+<Steps>
+  <Step title="AI Analysis">
+    Kairo's AI analyzes:
+    - Your soft skills assessment scores
+    - Current module progress and performance
+    - Struggling topics identified in your Moodle activities
+    - Learning style preferences from onboarding
+  </Step>
+
+  <Step title="Plan Generation">
+    The AI generates a customized 20-day plan targeting your weakest soft skill with daily activities tailored to your learning style.
+  </Step>
+
+  <Step title="Daily Progress">
+    Complete one activity per day. Mark activities as "completed" to unlock the next day's task.
+  </Step>
+
+  <Step title="Continuous Adaptation">
+    As you progress, the AI monitors your performance and can generate new plans when you complete the current one or when your needs change.
+  </Step>
+</Steps>
+
+## Plan Types
+
+Kairo generates three types of plans based on your current situation:
+
+<CardGroup cols={3}>
+  <Card title="Interpretive" icon="magnifying-glass" color="#7c3aed">
+    **Focus:** Deep understanding and reflection  
+    **Best For:** Visual and Reading learners  
+    **Activities:** Code analysis, concept mapping, documentation review
+  </Card>
+
+  <Card title="Directive" icon="compass" color="#2563eb">
+    **Focus:** Structured guidance and clear steps  
+    **Best For:** Sequential learners who prefer order  
+    **Activities:** Step-by-step tutorials, checklist-based tasks
+  </Card>
+
+  <Card title="Experiential" icon="flask" color="#16a34a">
+    **Focus:** Hands-on practice and experimentation  
+    **Best For:** Kinesthetic and Active learners  
+    **Activities:** Build projects, debugging challenges, pair programming
+  </Card>
+</CardGroup>
+
+## Accessing Your Learning Path
+
+### From the Dashboard
+
+1. Navigate to your **Coder Dashboard**
+2. Look for the **Active Plan** badge next to your name (if you have a plan)
+3. Click "View Plan" to see your current learning path
+
+<Note>
+If you don't have an active plan, you can request one by clicking "Request Learning Plan" on your dashboard.
+</Note>
+
+### Plan Interface
+
+Your learning path shows:
+- **Current Day** - Your next activity to complete
+- **Progress Bar** - Visual tracker showing X/20 days completed
+- **Targeted Soft Skill** - Which skill this plan is strengthening
+- **Plan Type** - Interpretive, Directive, or Experiential
+- **Daily Activities** - Scrollable list of all 20 days
+
+## Completing Daily Activities
+
+Each day's activity includes:
+
+```json
+{
+  "day": 5,
+  "title": "Debug a Complex Authentication Flow",
+  "description": "Practice systematic problem-solving by debugging a broken login system. Document your thought process.",
+  "estimatedTime": "30 minutes",
+  "reflection": "What debugging strategies worked best? How did you approach the problem?"
+}
+```
+
+<Steps>
+  <Step title="Read the Activity">
+    Review the day's task, description, and estimated time commitment.
+  </Step>
+
+  <Step title="Complete the Task">
+    Work through the activity at your own pace. Most activities take 20-40 minutes.
+  </Step>
+
+  <Step title="Reflect (Optional)">
+    Some activities include reflection prompts. Recording your thoughts helps reinforce learning.
+  </Step>
+
+  <Step title="Mark as Complete">
+    Click "Complete Day X" to mark the activity as done. This unlocks the next day's activity.
+  </Step>
+</Steps>
+
+<Tip>
+You can complete activities ahead of schedule, but the AI recommends spreading them over 20 days for better retention and habit formation.
+</Tip>
+
+## Plan Progression
+
+### Progress Tracking
+
+Your learning path dashboard displays:
+- **Completed Days:** Days you've marked as complete (stored in `completed_days` JSON)
+- **Current Day:** First incomplete day in sequence
+- **Completion Percentage:** Visual progress ring showing X/20 completed
+- **Next Activity Preview:** Sneak peek of tomorrow's task
+
+### Completing a Plan
+
+When you finish all 20 days:
+1. You'll see a **"Plan Complete!"** celebration message
+2. Your soft skill score in the targeted area will be re-evaluated
+3. You can request a new plan to target a different skill
+4. Your Team Leader receives a notification of your completion
+
+## Requesting a New Plan
+
+You can request a new learning path when:
+- You've completed your current 20-day plan
+- You don't have an active plan
+- Your needs have changed (new module, different struggles)
+
+**To request a plan:**
+
+<CodeGroup>
+```javascript Dashboard
+// From your Coder Dashboard
+GET /api/coder/plan
+// Returns: { hasPlan: false } if no active plan
+
+// Click "Request Plan" button
+POST /api/coder/plan/request
+{
+  "plan_type": "interpretive", // or "directive", "experiential"
+  "current_week": 3
+}
+```
+</CodeGroup>
+
+<Warning>
+Plan generation takes 10-30 seconds. The AI calls the Python microservice to analyze your data and create personalized content. Refresh your dashboard after a few moments to see your new plan.
+</Warning>
+
+## Example Learning Path Activities
+
+### Autonomy Focus (20-Day Plan)
+
+| Day | Activity Title | Type |
+|-----|---------------|------|
+| 1 | Set Your Learning Goals | Reflection |
+| 3 | Debug Without Asking for Help | Practice |
+| 5 | Create Your Own Mini-Project | Build |
+| 10 | Document a Feature You Built | Writing |
+| 15 | Teach a Concept to a Peer | Teaching |
+| 20 | Present Your Learning Journey | Showcase |
+
+### Time Management Focus (20-Day Plan)
+
+| Day | Activity Title | Type |
+|-----|---------------|------|
+| 1 | Track Your Daily Coding Time | Analysis |
+| 4 | Break Down a Large Task | Planning |
+| 7 | Use Pomodoro for 3 Sessions | Practice |
+| 12 | Estimate Task Duration | Estimation |
+| 18 | Review Your Weekly Schedule | Reflection |
+| 20 | Create a Personal Productivity System | Synthesis |
+
+## Plan Snapshots
+
+Each plan stores a snapshot of your state when it was generated:
+
+```json
+{
+  "soft_skills_snapshot": {
+    "autonomy": 2.5,
+    "timeManagement": 3.0,
+    "problemSolving": 3.5,
+    "communication": 4.0,
+    "teamwork": 3.5
+  },
+  "moodle_status_snapshot": {
+    "current_week": 4,
+    "average_score": 78.5,
+    "struggling_topics": ["Async/Await", "SQL Joins"]
+  },
+  "targeted_soft_skill": "autonomy"
+}
+```
+
+This ensures the plan remains relevant even if your scores improve during the 20 days.
+
+## Monitoring Your Progress
+
+### Dashboard Indicators
+
+- **Plan Badge:** Purple badge next to your name indicates an active plan
+- **Progress Ring:** Shows X/20 days completed with percentage
+- **Current Day Highlight:** Next activity is prominently displayed
+
+### Completion Rewards
+
+Completing a learning path:
+- Improves your targeted soft skill score
+- Unlocks achievement badges (coming soon)
+- Signals to your TL that you're proactive and engaged
+- Contributes to your overall performance metrics
+
+<Tip>
+Consistency matters more than speed. Completing one activity per day builds stronger habits than rushing through multiple activities at once.
+</Tip>
+
+## FAQs
+
+<AccordionGroup>
+  <Accordion title="Can I skip days in my learning path?">
+    Yes! Days don't need to be completed sequentially, but the "Current Day" tracker shows the first incomplete day. However, completing activities in order is recommended for optimal learning progression.
+  </Accordion>
+
+  <Accordion title="What happens if I don't complete my plan in 20 days?">
+    There's no time limit. The "20-day plan" refers to 20 activities, not a calendar deadline. Work at your own pace.
+  </Accordion>
+
+  <Accordion title="Can I have multiple active plans?">
+    No. Only one plan can be active at a time to maintain focus. Complete your current plan before requesting a new one.
+  </Accordion>
+
+  <Accordion title="How does the AI choose which soft skill to target?">
+    The AI identifies your lowest-scoring soft skill from your assessment and current performance data, then generates a plan to strengthen it.
+  </Accordion>
+
+  <Accordion title="Can I request a specific plan type?">
+    Yes! When requesting a plan, you can specify "interpretive," "directive," or "experiential" based on your preference.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+- [View Assignments](/students/assignments) - Access your regular coursework alongside your learning path
+- [Track Your Profile](/students/profile) - Monitor your soft skills improvement over time

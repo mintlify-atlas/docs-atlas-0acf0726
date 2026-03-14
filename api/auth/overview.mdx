@@ -1,0 +1,111 @@
+---
+title: 'Authentication Overview'
+description: 'Learn about authentication methods, session management, and security in the Kairo Learning Platform'
+---
+
+## Authentication Methods
+
+The Kairo Learning Platform supports multiple authentication methods:
+
+1. **Email/Password Authentication** - Traditional registration with OTP verification
+2. **OAuth Providers** - Google and GitHub social authentication
+3. **Session-based Authentication** - Server-side sessions with Passport.js
+
+## Authentication Flow
+
+### Email/Password Flow
+
+1. User registers with email, password, and profile information
+2. System generates a 6-digit OTP code (valid for 15 minutes)
+3. OTP is sent to the user's email
+4. User verifies OTP to complete registration
+5. Session is created and user is authenticated
+
+### OAuth Flow
+
+1. User initiates OAuth with Google or GitHub
+2. User authenticates with the provider
+3. System creates/updates user account
+4. User is automatically marked as verified (no OTP required)
+5. Session is created and user is redirected based on onboarding status
+
+## Session Management
+
+The platform uses **server-side sessions** managed by Express Session:
+
+- Sessions are stored server-side with a session ID cookie (`connect.sid`)
+- Sessions persist user ID and authentication state
+- Sessions expire based on server configuration
+- Users can explicitly logout to destroy their session
+
+## Security Features
+
+### OTP Verification
+
+- 6-digit codes expire after 15 minutes (registration) or 5 minutes (login)
+- Maximum 5 attempts per code before invalidation
+- Previous codes are invalidated when new codes are generated
+- Rate limiting on resend requests (max 3 per 10 minutes)
+
+### Password Security
+
+- Passwords are hashed using bcrypt with 10 salt rounds
+- Never stored or transmitted in plain text
+- Minimum requirements enforced client-side
+
+### Protected Routes
+
+Routes are protected using middleware:
+
+- `isAuthenticated` - Requires active session
+- `hasRole(role)` - Requires specific user role
+
+## User Roles
+
+The platform supports the following roles:
+
+- **coder** - Default role for students/learners
+- **mentor** - Instructors and mentors (future)
+- **admin** - Platform administrators (future)
+
+## Onboarding
+
+New users have a `firstLogin` flag that triggers onboarding:
+
+- First-time users are redirected to onboarding flow
+- Onboarding can collect additional information (clan selection)
+- After completion, `firstLogin` is set to `false`
+
+## Base URL
+
+All authentication endpoints are prefixed with:
+
+```
+/api/auth
+```
+
+## Common Error Codes
+
+| Code | Description |
+|------|-------------|
+| `400` | Bad Request - Invalid or missing parameters |
+| `401` | Unauthorized - Invalid credentials or no session |
+| `403` | Forbidden - OTP verification required |
+| `404` | Not Found - User does not exist |
+| `409` | Conflict - Email already registered |
+| `429` | Too Many Requests - Rate limit exceeded |
+| `500` | Internal Server Error - Server-side error |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Login" icon="right-to-bracket" href="/api/auth/login">
+    Authenticate existing users
+  </Card>
+  <Card title="Register" icon="user-plus" href="/api/auth/register">
+    Create new user accounts
+  </Card>
+  <Card title="OAuth" icon="key" href="/api/auth/oauth">
+    Social authentication with Google and GitHub
+  </Card>
+</CardGroup>

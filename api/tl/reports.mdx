@@ -1,0 +1,284 @@
+---
+title: 'Reports & Analytics'
+description: 'Access clan metrics, risk reports, and performance analytics'
+---
+
+## Get Clan Metrics
+
+<RequestExample>
+```bash cURL
+curl -X GET https://api.kairolearning.com/api/tl/metrics/clan/clan-alpha \
+  -H "Cookie: session_id=your_session_token"
+```
+
+```javascript JavaScript
+const clanId = 'clan-alpha';
+const response = await fetch(`/api/tl/metrics/clan/${clanId}`, {
+  credentials: 'include'
+});
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+clan_id = 'clan-alpha'
+response = requests.get(
+    f'https://api.kairolearning.com/api/tl/metrics/clan/{clan_id}',
+    cookies={'session_id': 'your_session_token'}
+)
+data = response.json()
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "clanId": "clan-alpha",
+  "metrics": {
+    "averagePerformance": "78.62",
+    "highRiskCoders": 3,
+    "totalStudents": 24,
+    "riskPercentage": 12.5
+  }
+}
+```
+</ResponseExample>
+
+### Endpoint
+
+```
+GET /api/tl/metrics/clan/:clan_id
+```
+
+### Description
+
+Retrieves aggregated performance and risk metrics for a specific clan. Calculates average scores across all students and identifies high-risk students with unresolved flags.
+
+### Path Parameters
+
+<ParamField path="clan_id" type="string" required>
+  The clan identifier (e.g., `clan-alpha`, `clan-bravo`)
+</ParamField>
+
+### Authentication
+
+Requires active session with `tl` (Team Leader) role.
+
+### Response Fields
+
+<ResponseField name="clanId" type="string">
+  The clan ID from the request
+</ResponseField>
+
+<ResponseField name="metrics" type="object">
+  Aggregated clan metrics
+  
+  <ResponseField name="averagePerformance" type="string">
+    Clan-wide average Moodle score formatted to 2 decimal places
+  </ResponseField>
+  
+  <ResponseField name="highRiskCoders" type="integer">
+    Count of students with unresolved `high` or `critical` risk flags
+  </ResponseField>
+  
+  <ResponseField name="totalStudents" type="integer">
+    Total number of students in the clan with role `coder`
+  </ResponseField>
+  
+  <ResponseField name="riskPercentage" type="number">
+    Percentage of students at high risk (calculated as `highRiskCoders / totalStudents * 100`)
+  </ResponseField>
+</ResponseField>
+
+### Error Responses
+
+<ResponseField name="500" type="object">
+  Server error during metrics calculation
+  ```json
+  { "error": "Failed to calculate clan metrics" }
+  ```
+</ResponseField>
+
+### Implementation Notes
+
+- Uses LEFT JOIN to include all students, even those without Moodle progress or risk flags
+- Risk count only includes unresolved flags (`resolved = false`)
+- Average performance includes all students; null scores are treated as 0 in the calculation
+
+---
+
+## Get Risk Reports
+
+<RequestExample>
+```bash cURL
+curl -X GET https://api.kairolearning.com/api/tl/risk-flags \
+  -H "Cookie: session_id=your_session_token"
+```
+
+```javascript JavaScript
+const response = await fetch('/api/tl/risk-flags', {
+  credentials: 'include'
+});
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'https://api.kairolearning.com/api/tl/risk-flags',
+    cookies={'session_id': 'your_session_token'}
+)
+data = response.json()
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "active_risks": [
+    {
+      "id": 45,
+      "coder_id": 15,
+      "risk_level": "critical",
+      "reason": "Two consecutive weeks below 60% average",
+      "flagged_at": "2026-03-10T08:30:00.000Z",
+      "resolved": false,
+      "resolved_at": null,
+      "resolved_by": null,
+      "full_name": "Carlos Ruiz",
+      "email": "carlos@example.com"
+    },
+    {
+      "id": 47,
+      "coder_id": 22,
+      "risk_level": "high",
+      "reason": "Average score below 70% threshold",
+      "flagged_at": "2026-03-12T14:15:00.000Z",
+      "resolved": false,
+      "resolved_at": null,
+      "resolved_by": null,
+      "full_name": "Laura Torres",
+      "email": "laura@example.com"
+    },
+    {
+      "id": 48,
+      "coder_id": 33,
+      "risk_level": "high",
+      "reason": "No quiz completion in current week",
+      "flagged_at": "2026-03-13T09:45:00.000Z",
+      "resolved": false,
+      "resolved_at": null,
+      "resolved_by": null,
+      "full_name": "Sofia Martínez",
+      "email": "sofia@example.com"
+    },
+    {
+      "id": 49,
+      "coder_id": 41,
+      "risk_level": "medium",
+      "reason": "Declining performance trend over 3 weeks",
+      "flagged_at": "2026-03-13T16:20:00.000Z",
+      "resolved": false,
+      "resolved_at": null,
+      "resolved_by": null,
+      "full_name": "Diego Hernández",
+      "email": "diego@example.com"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+### Endpoint
+
+```
+GET /api/tl/risk-flags
+```
+
+### Description
+
+Retrieves all unresolved risk flags across the platform, ordered by severity (critical → high → medium). Each risk includes student contact information for follow-up.
+
+### Authentication
+
+Requires active session with `tl` (Team Leader) role.
+
+### Response Fields
+
+<ResponseField name="active_risks" type="array">
+  Array of unresolved risk flag records with student information
+  
+  <ResponseField name="id" type="integer">
+    Risk flag record ID
+  </ResponseField>
+  
+  <ResponseField name="coder_id" type="integer">
+    Student user ID
+  </ResponseField>
+  
+  <ResponseField name="risk_level" type="string">
+    Severity level: `critical`, `high`, or `medium`
+  </ResponseField>
+  
+  <ResponseField name="reason" type="string">
+    Detailed explanation of why the risk flag was raised
+  </ResponseField>
+  
+  <ResponseField name="flagged_at" type="string">
+    ISO 8601 timestamp when the risk was first flagged
+  </ResponseField>
+  
+  <ResponseField name="resolved" type="boolean">
+    Always `false` in this endpoint (only returns unresolved risks)
+  </ResponseField>
+  
+  <ResponseField name="resolved_at" type="string | null">
+    Always `null` for unresolved risks
+  </ResponseField>
+  
+  <ResponseField name="resolved_by" type="integer | null">
+    Always `null` for unresolved risks
+  </ResponseField>
+  
+  <ResponseField name="full_name" type="string">
+    Student's full name (joined from users table)
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    Student's email address (joined from users table)
+  </ResponseField>
+</ResponseField>
+
+### Error Responses
+
+<ResponseField name="500" type="object">
+  Server error during risk report generation
+  ```json
+  { "error": "Failed to fetch risk reports" }
+  ```
+</ResponseField>
+
+### Sorting Logic
+
+Risks are ordered using explicit CASE statement:
+
+1. **Critical** (priority 1) - Most severe risks requiring immediate intervention
+2. **High** (priority 2) - Significant concerns requiring prompt attention
+3. **Medium** (priority 3) - Moderate concerns for monitoring
+4. **Other** (priority 4) - Catch-all for any undefined levels
+
+### Use Cases
+
+- **Dashboard Risk Widget**: Display top 5 critical/high risks
+- **Weekly Intervention Planning**: Identify students needing 1-on-1 sessions
+- **Performance Review**: Track risk trends over time
+- **Email Campaigns**: Generate contact lists for at-risk student outreach
+
+### Implementation Notes
+
+- Only returns records where `resolved = false`
+- Joins with `users` table to provide contact information
+- Uses explicit CASE-based ordering instead of text comparison for reliable sorting
+- Empty array returned if no active risks exist

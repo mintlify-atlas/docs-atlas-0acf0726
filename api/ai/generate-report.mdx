@@ -1,0 +1,325 @@
+---
+title: 'Generate TL Report'
+api: 'POST /api/ia/generate-report'
+description: 'Generate AI-powered analytical reports for Team Leaders using Groq LLM'
+---
+
+## Overview
+
+Generates comprehensive analytical reports for Team Leaders (TLs) summarizing their clan's performance, risks, and actionable recommendations.
+
+Uses Groq's `llama-3.3-70b-versatile` model to analyze educational data and provide strategic insights.
+
+## Authentication
+
+Requires authentication with `tl` (Team Leader) role.
+
+```http
+Authorization: Bearer <token>
+```
+
+## Request Body
+
+<ParamField body="clan" type="string" required>
+  The clan identifier (e.g., "A", "B", "C")
+</ParamField>
+
+<ParamField body="tl_id" type="integer" required>
+  The Team Leader's user ID
+</ParamField>
+
+<ParamField body="total_coders" type="integer" required>
+  Total number of students in the clan
+</ParamField>
+
+<ParamField body="average_score" type="number" required>
+  Clan's average performance score (0-100)
+</ParamField>
+
+<ParamField body="high_risk_count" type="integer" required>
+  Number of students with high or critical risk flags
+</ParamField>
+
+<ParamField body="top_struggling_topics" type="array" default="[]">
+  Most common struggling topics across the clan
+  ```json
+  ["Loops", "Functions", "Async Programming"]
+  ```
+</ParamField>
+
+<ParamField body="soft_skills_summary" type="object" default="{}">
+  Aggregated soft skills data for the clan
+  ```json
+  {
+    "average_autonomy": 3.2,
+    "average_problem_solving": 3.8,
+    "average_communication": 4.1
+  }
+  ```
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the report was generated successfully
+</ResponseField>
+
+<ResponseField name="report" type="object">
+  The generated analytical report
+  
+  <ResponseField name="report.report_title" type="string">
+    Report title (e.g., "Clan A — Performance Report")
+  </ResponseField>
+  
+  <ResponseField name="report.generated_date" type="string">
+    Human-readable date (e.g., "March 14, 2026")
+  </ResponseField>
+  
+  <ResponseField name="report.risk_level" type="string">
+    Overall clan risk assessment: `low`, `medium`, `high`, or `critical`
+  </ResponseField>
+  
+  <ResponseField name="report.summary" type="string">
+    Paragraph summarizing current state of the clan
+  </ResponseField>
+  
+  <ResponseField name="report.risks" type="string">
+    Paragraph identifying main risks and concerns
+  </ResponseField>
+  
+  <ResponseField name="report.recommendations" type="string">
+    Paragraph with strategic recommendations for the TL
+  </ResponseField>
+  
+  <ResponseField name="report.action_items" type="array">
+    3-5 concrete action items
+    ```json
+    [
+      "Schedule 1-on-1 sessions with high-risk students",
+      "Organize group workshop on loops and functions",
+      "Implement peer programming for struggling topics"
+    ]
+    ```
+  </ResponseField>
+</ResponseField>
+
+## AI Model Configuration
+
+**Provider**: Groq  
+**Model**: `llama-3.3-70b-versatile`  
+**Temperature**: 0.6 (lower for more factual outputs)  
+**Max Tokens**: 1000  
+**System Prompt**: "You are an educational analyst. Respond only with valid JSON, no markdown."
+
+## Examples
+
+<CodeGroup>
+
+```bash Request
+curl -X POST https://api.kairo.com/api/ia/generate-report \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clan": "A",
+    "tl_id": 45,
+    "total_coders": 25,
+    "average_score": 76.3,
+    "high_risk_count": 4,
+    "top_struggling_topics": ["Loops", "Functions", "Arrays"],
+    "soft_skills_summary": {
+      "average_autonomy": 3.1,
+      "average_problem_solving": 3.5
+    }
+  }'
+```
+
+```javascript Node.js
+const response = await fetch('https://api.kairo.com/api/ia/generate-report', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    clan: 'A',
+    tl_id: 45,
+    total_coders: 25,
+    average_score: 76.3,
+    high_risk_count: 4,
+    top_struggling_topics: ['Loops', 'Functions', 'Arrays'],
+    soft_skills_summary: {
+      average_autonomy: 3.1,
+      average_problem_solving: 3.5
+    }
+  })
+});
+
+const data = await response.json();
+```
+
+```json Response
+{
+  "success": true,
+  "report": {
+    "report_title": "Clan A — Performance Report",
+    "generated_date": "March 14, 2026",
+    "risk_level": "medium",
+    "summary": "Clan A muestra un desempeño promedio de 76.3/100 con 25 estudiantes activos. El rendimiento general es satisfactorio, aunque hay áreas de mejora identificadas en programación básica. La mayoría del grupo mantiene un progreso estable, pero existe un segmento que requiere atención individualizada.",
+    "risks": "Se identificaron 4 estudiantes en riesgo alto o crítico que necesitan intervención inmediata. Los temas de loops, funciones y arrays presentan dificultad recurrente, lo que podría impactar módulos futuros. Los niveles de autonomía (3.1/5) sugieren dependencia del instructor que debe abordarse para preparar a los estudiantes para trabajo autónomo.",
+    "recommendations": "Se recomienda implementar sesiones de refuerzo focalizadas en loops y funciones, utilizando metodologías hands-on. Establecer un sistema de peer programming donde estudiantes avanzados apoyen a quienes tienen dificultades. Desarrollar actividades que fomenten autonomía gradual, comenzando con ejercicios guiados y progresando a retos independientes. Monitorear semanalmente a los 4 estudiantes de alto riesgo con check-ins personalizados.",
+    "action_items": [
+      "Agendar sesiones 1-on-1 con los 4 estudiantes de alto riesgo esta semana",
+      "Crear taller grupal de 2 horas sobre loops y funciones para viernes",
+      "Implementar parejas de peer programming para próximas 3 semanas",
+      "Diseñar retos progresivos de autonomía (guiado → semi-guiado → independiente)",
+      "Configurar check-in semanal automático con estudiantes en riesgo"
+    ]
+  }
+}
+```
+
+</CodeGroup>
+
+## Persistence
+
+The report is automatically saved to the `ai_reports` table:
+
+```sql
+INSERT INTO ai_reports (
+  target_type,
+  target_id,
+  summary_text,
+  risk_level,
+  recommendations,
+  clan_id,
+  viewed_by_tl
+) VALUES (
+  'clan',
+  tl_id,
+  report.summary,
+  report.risk_level,
+  report.recommendations,
+  clan,
+  false
+)
+```
+
+Generation is also logged in `ai_generation_log`:
+
+```json
+{
+  "agent_type": "report_generator",
+  "input_payload": {"clan": "A", "total_coders": 25},
+  "output_payload": {...report},
+  "model_name": "llama-3.3-70b-versatile",
+  "success": true
+}
+```
+
+## Report Sections
+
+Each report contains **3 main sections**:
+
+### 1. Current State Summary
+Overview of clan performance, enrollment, and general progress.
+
+### 2. Main Risks and Concerns
+Identification of:
+- High-risk students
+- Recurring struggling topics
+- Soft skill deficiencies
+- Potential blockers for future modules
+
+### 3. Concrete Recommendations
+3-5 **actionable items** the TL can implement immediately, such as:
+- Individual intervention strategies
+- Group workshops
+- Peer programming assignments
+- Monitoring protocols
+
+## Risk Level Classification
+
+The AI assigns one of four risk levels:
+
+| Risk Level | Criteria | TL Action |
+|------------|----------|----------|
+| `low` | < 10% high-risk students, avg score > 80 | Maintain current approach |
+| `medium` | 10-20% high-risk, avg score 70-80 | Implement preventive measures |
+| `high` | 20-30% high-risk, avg score 60-70 | Urgent intervention required |
+| `critical` | > 30% high-risk, avg score < 60 | Immediate escalation needed |
+
+## Node.js Integration
+
+The Node.js backend automatically aggregates clan data before calling this endpoint:
+
+```javascript
+// Fetch clan coders
+const { data: coders } = await supabase
+  .from('users')
+  .select('id')
+  .eq('clan', clan)
+  .eq('role', 'coder');
+
+const coderIds = coders.map(c => c.id);
+
+// Calculate average score
+const { data: moodleData } = await supabase
+  .from('moodle_progress')
+  .select('average_score')
+  .in('coder_id', coderIds);
+
+const avgScore = moodleData.reduce((a, b) => a + b.average_score, 0) / moodleData.length;
+
+// Count high-risk students
+const { data: risks } = await supabase
+  .from('risk_flags')
+  .select('id')
+  .in('coder_id', coderIds)
+  .in('risk_level', ['high', 'critical'])
+  .eq('resolved', false);
+
+// Call Python API
+const report = await callPythonApi('/generate-report', {
+  clan,
+  tl_id: user.id,
+  total_coders: coderIds.length,
+  average_score: avgScore,
+  high_risk_count: risks.length
+});
+```
+
+## Error Handling
+
+<ResponseField name="error" type="object">
+  Error details when generation fails
+  
+  <ResponseField name="status_code" type="integer">
+    HTTP status code
+  </ResponseField>
+  
+  <ResponseField name="detail" type="string">
+    Error message
+  </ResponseField>
+</ResponseField>
+
+**Common Errors**:
+- `400`: TL has no clan assigned
+- `500`: JSON parse error (AI returned invalid JSON)
+- `500`: Report generation failed
+- `502`: AI service unavailable
+
+## PDF Generation
+
+For PDF exports, use the separate endpoint:
+
+```bash
+GET /api/ia/generate-pdf/{clan}
+```
+
+PDF generation is handled by the Team Leader dashboard interface.
+
+## Performance
+
+Typical generation time: **800ms - 1.5s**  
+Model inference: **~600ms**  
+Database save: **~100ms**

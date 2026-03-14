@@ -1,0 +1,313 @@
+---
+title: 'Soft Skills Diagnostics'
+description: 'Submit and retrieve soft skills assessment data for students'
+---
+
+## Authentication
+
+All diagnostic endpoints require:
+- **Session-based authentication** via `req.session.userId`
+- **Role:** `coder`
+
+Diagnostic assessment is typically completed during onboarding before dashboard access is granted.
+
+---
+
+## Soft Skills Assessment
+
+The Kairo platform uses a comprehensive soft skills diagnostic to personalize learning plans. Assessment data is stored in the `soft_skills_assessment` table with the following structure:
+
+### Assessment Fields
+
+<ParamField body="autonomy" type="number" required>
+  Autonomy score (1-5 scale)
+</ParamField>
+
+<ParamField body="timeManagement" type="number" required>
+  Time management score (1-5 scale)
+</ParamField>
+
+<ParamField body="problemSolving" type="number" required>
+  Problem-solving score (1-5 scale)
+</ParamField>
+
+<ParamField body="communication" type="number" required>
+  Communication score (1-5 scale)
+</ParamField>
+
+<ParamField body="teamwork" type="number" required>
+  Teamwork score (1-5 scale)
+</ParamField>
+
+<ParamField body="learningStyle" type="string" required>
+  Identified learning style (e.g., `"visual"`, `"auditory"`, `"kinesthetic"`, `"reading_writing"`)
+</ParamField>
+
+<ParamField body="rawAnswers" type="array" optional>
+  Array of raw diagnostic question answers for audit/re-analysis purposes. This field is persisted as JSONB in the database.
+</ParamField>
+
+---
+
+## Create or Update Assessment
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.kairo.com/api/onboarding/soft-skills \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=abc123..." \
+  -d '{
+    "autonomy": 4,
+    "timeManagement": 3,
+    "problemSolving": 5,
+    "communication": 4,
+    "teamwork": 4,
+    "learningStyle": "visual",
+    "rawAnswers": [
+      {"question": "Q1", "answer": "A"},
+      {"question": "Q2", "answer": "B"}
+    ]
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/onboarding/soft-skills', {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    autonomy: 4,
+    timeManagement: 3,
+    problemSolving: 5,
+    communication: 4,
+    teamwork: 4,
+    learningStyle: 'visual',
+    rawAnswers: [
+      { question: 'Q1', answer: 'A' },
+      { question: 'Q2', answer: 'B' }
+    ]
+  })
+});
+const data = await response.json();
+```
+</CodeGroup>
+
+**POST** `/api/onboarding/soft-skills`
+
+Creates or updates (upsert) the soft skills assessment for the authenticated student. If an assessment already exists for this coder, all fields are updated with the new values.
+
+### Request Body
+
+<ParamField body="autonomy" type="number" required>
+  Autonomy score (1-5)
+</ParamField>
+
+<ParamField body="timeManagement" type="number" required>
+  Time management score (1-5)
+</ParamField>
+
+<ParamField body="problemSolving" type="number" required>
+  Problem-solving score (1-5)
+</ParamField>
+
+<ParamField body="communication" type="number" required>
+  Communication score (1-5)
+</ParamField>
+
+<ParamField body="teamwork" type="number" required>
+  Teamwork score (1-5)
+</ParamField>
+
+<ParamField body="learningStyle" type="string" required>
+  Learning style identifier
+</ParamField>
+
+<ParamField body="rawAnswers" type="array" optional>
+  Full array of diagnostic responses for future analysis
+</ParamField>
+
+### Response
+
+Returns the complete assessment record including database-generated fields.
+
+<ResponseField name="coder_id" type="integer">
+  Student's user ID
+</ResponseField>
+
+<ResponseField name="autonomy" type="number">
+  Stored autonomy score
+</ResponseField>
+
+<ResponseField name="time_management" type="number">
+  Stored time management score
+</ResponseField>
+
+<ResponseField name="problem_solving" type="number">
+  Stored problem-solving score
+</ResponseField>
+
+<ResponseField name="communication" type="number">
+  Stored communication score
+</ResponseField>
+
+<ResponseField name="teamwork" type="number">
+  Stored teamwork score
+</ResponseField>
+
+<ResponseField name="learning_style" type="string">
+  Stored learning style
+</ResponseField>
+
+<ResponseField name="raw_answers" type="object">
+  JSONB stored raw answers
+</ResponseField>
+
+<ResponseField name="assessed_at" type="string">
+  ISO timestamp of assessment (auto-updated on upsert)
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "coder_id": 42,
+  "autonomy": 4,
+  "time_management": 3,
+  "problem_solving": 5,
+  "communication": 4,
+  "teamwork": 4,
+  "learning_style": "visual",
+  "raw_answers": [
+    {"question": "Q1", "answer": "A"},
+    {"question": "Q2", "answer": "B"}
+  ],
+  "assessed_at": "2026-03-14T10:30:00Z"
+}
+```
+
+---
+
+## Get Assessment
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.kairo.com/api/coder/dashboard \
+  -H "Cookie: session=abc123..."
+```
+
+```javascript JavaScript
+const response = await fetch('/api/coder/dashboard', {
+  credentials: 'include'
+});
+const { softSkills } = await response.json();
+```
+</CodeGroup>
+
+**GET** `/api/coder/dashboard`
+
+Soft skills assessment data is included in the dashboard response under the `softSkills` field.
+
+### Response Structure
+
+<ResponseField name="softSkills" type="object | null">
+  Returns `null` if no assessment exists yet
+  
+  <ResponseField name="autonomy" type="number">
+    Autonomy score (1-5)
+  </ResponseField>
+  
+  <ResponseField name="timeManagement" type="number">
+    Time management score (1-5)
+  </ResponseField>
+  
+  <ResponseField name="problemSolving" type="number">
+    Problem-solving score (1-5)
+  </ResponseField>
+  
+  <ResponseField name="communication" type="number">
+    Communication score (1-5)
+  </ResponseField>
+  
+  <ResponseField name="teamwork" type="number">
+    Teamwork score (1-5)
+  </ResponseField>
+  
+  <ResponseField name="learningStyle" type="string">
+    Learning style identifier
+  </ResponseField>
+  
+  <ResponseField name="assessedAt" type="string">
+    ISO timestamp of last assessment
+  </ResponseField>
+  
+  <ResponseField name="average" type="number">
+    Calculated average of all five soft skills (rounded to 2 decimals)
+  </ResponseField>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "softSkills": {
+    "autonomy": 4,
+    "timeManagement": 3,
+    "problemSolving": 5,
+    "communication": 4,
+    "teamwork": 4,
+    "learningStyle": "visual",
+    "assessedAt": "2026-03-01T10:30:00Z",
+    "average": 4.0
+  }
+}
+```
+
+---
+
+## Partial Update
+
+The soft skills model supports partial updates, though this is typically handled internally by the platform rather than exposed as a direct API endpoint.
+
+### Database Model Methods
+
+**Location:** `backend-node/src/models/softSkills.js:71-96`
+
+The `update(coderId, updates)` function allows updating specific fields without overwriting the entire assessment:
+
+```javascript Example Usage (Internal)
+import { update } from '../models/softSkills.js';
+
+// Update only time management score
+const updated = await update(coderId, {
+  timeManagement: 4
+});
+```
+
+This method:
+- Only updates provided fields
+- Automatically updates `assessed_at` timestamp
+- Returns the complete updated record
+- Returns `null` if no fields provided
+
+---
+
+## Data Persistence
+
+All soft skills data is stored in the `soft_skills_assessment` table with the following characteristics:
+
+- **Upsert behavior:** `ON CONFLICT (coder_id) DO UPDATE` ensures one assessment per student
+- **JSONB storage:** `raw_answers` column stores full diagnostic responses for audit/re-analysis
+- **Auto-timestamps:** `assessed_at` updates automatically on every upsert
+- **Unique constraint:** One assessment per `coder_id`
+
+### Example Database Record
+
+```sql
+SELECT * FROM soft_skills_assessment WHERE coder_id = 42;
+
+┌──────────┬──────────┬─────────────────┬─────────────────┬───────────────┬──────────┬────────────────┬──────────────┬──────────────────────┐
+│ coder_id │ autonomy │ time_management │ problem_solving │ communication │ teamwork │ learning_style │ raw_answers  │ assessed_at          │
+├──────────┼──────────┼─────────────────┼─────────────────┼───────────────┼──────────┼────────────────┼──────────────┼──────────────────────┤
+│ 42       │ 4        │ 3               │ 5               │ 4             │ 4        │ visual         │ [{...}]      │ 2026-03-14T10:30:00Z │
+└──────────┴──────────┴─────────────────┴─────────────────┴───────────────┴──────────┴────────────────┴──────────────┴──────────────────────┘
+```

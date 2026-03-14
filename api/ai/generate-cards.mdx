@@ -1,0 +1,288 @@
+---
+title: 'Generate Focus Cards'
+api: 'POST /api/ia/generate-focus-cards'
+description: 'Generate personalized study cards using Groq LLM based on struggling topics and learning style'
+---
+
+## Overview
+
+Generates 6 smart study cards tailored to a student's learning profile and struggling topics. Cards are prioritized and include theory explanations, practical exercises, and pro tips.
+
+Uses Groq's `llama-3.3-70b-versatile` model to create personalized learning materials.
+
+## Authentication
+
+Requires authentication with `coder` role.
+
+```http
+Authorization: Bearer <token>
+```
+
+## Request Body
+
+<ParamField body="coder_id" type="integer" required>
+  The unique identifier of the student
+</ParamField>
+
+<ParamField body="module_id" type="integer" required>
+  The module context for card generation
+</ParamField>
+
+<ParamField body="struggling_topics" type="array" default="[]">
+  List of topic names where student needs help
+  ```json
+  ["Variables", "Functions", "Loops"]
+  ```
+  If empty, generates cards on "general programming concepts"
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if cards were generated successfully
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Container for the generated cards
+  
+  <ResponseField name="data.cards" type="array">
+    Array of 6 focus cards (2 High, 2 Medium, 2 Low priority)
+    
+    <ResponseField name="cards[].priority" type="string">
+      Priority level: `high`, `medium`, or `low`
+    </ResponseField>
+    
+    <ResponseField name="cards[].topic" type="string">
+      Topic name (e.g., "Variables", "Functions")
+    </ResponseField>
+    
+    <ResponseField name="cards[].title" type="string">
+      Card title (concise learning objective)
+    </ResponseField>
+    
+    <ResponseField name="cards[].theory" type="string">
+      3-4 sentence explanation of the concept
+    </ResponseField>
+    
+    <ResponseField name="cards[].practice" type="object">
+      Practical exercise
+      
+      <ResponseField name="practice.description" type="string">
+        What the student should do
+      </ResponseField>
+      
+      <ResponseField name="practice.example" type="string">
+        Code snippet or step-by-step instructions
+      </ResponseField>
+    </ResponseField>
+    
+    <ResponseField name="cards[].pro_tips" type="array">
+      Array of 2 actionable tips
+      ```json
+      ["Tip 1", "Tip 2"]
+      ```
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+## AI Model Configuration
+
+**Provider**: Groq  
+**Model**: `llama-3.3-70b-versatile`  
+**Temperature**: 0.7  
+**Max Tokens**: 2048  
+**System Prompt**: "You are an expert coding tutor. Respond only with valid JSON, no markdown."
+
+## Context Used
+
+The AI considers:
+- **Learning Style**: From soft skills assessment (visual, kinesthetic, mixed)
+- **Problem Solving**: Student's problem-solving score (1-5)
+- **Autonomy**: Student's autonomy level (1-5)
+- **Struggling Topics**: Current challenges from Moodle progress
+
+## Examples
+
+<CodeGroup>
+
+```bash Request
+curl -X POST https://api.kairo.com/api/ia/generate-focus-cards \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "coder_id": 123,
+    "module_id": 1,
+    "struggling_topics": ["Loops", "Functions"]
+  }'
+```
+
+```javascript Node.js
+const response = await fetch('https://api.kairo.com/api/ia/generate-focus-cards', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    coder_id: 123,
+    module_id: 1,
+    struggling_topics: ['Loops', 'Functions']
+  })
+});
+
+const data = await response.json();
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "cards": [
+      {
+        "priority": "high",
+        "topic": "Loops",
+        "title": "Domina el bucle for",
+        "theory": "Los bucles for permiten repetir código un número específico de veces. Son ideales cuando conoces de antemano cuántas iteraciones necesitas. La sintaxis básica incluye inicialización, condición y actualización.",
+        "practice": {
+          "description": "Crea un programa que imprima los números del 1 al 10",
+          "example": "for (let i = 1; i <= 10; i++) {\n  console.log(i);\n}"
+        },
+        "pro_tips": [
+          "Dibuja el flujo del bucle en papel antes de codificar",
+          "Usa console.log() para verificar cada iteración"
+        ]
+      },
+      {
+        "priority": "high",
+        "topic": "Functions",
+        "title": "Funciones reutilizables",
+        "theory": "Las funciones son bloques de código que realizan tareas específicas. Te permiten reutilizar lógica y organizar tu código mejor. Pueden recibir parámetros y retornar valores.",
+        "practice": {
+          "description": "Crea una función que sume dos números",
+          "example": "function suma(a, b) {\n  return a + b;\n}\nconsole.log(suma(5, 3)); // 8"
+        },
+        "pro_tips": [
+          "Usa nombres descriptivos para tus funciones",
+          "Cada función debe hacer una sola cosa bien"
+        ]
+      },
+      {
+        "priority": "medium",
+        "topic": "Loops",
+        "title": "While vs For: ¿Cuándo usar cada uno?",
+        "theory": "El bucle while se usa cuando no sabes cuántas iteraciones necesitas. Continúa mientras la condición sea verdadera. Es perfecto para validar entradas de usuario o procesar datos hasta cierta condición.",
+        "practice": {
+          "description": "Crea un contador que sume hasta alcanzar 100",
+          "example": "let sum = 0;\nlet i = 1;\nwhile (sum < 100) {\n  sum += i;\n  i++;\n}\nconsole.log(sum);"
+        },
+        "pro_tips": [
+          "Asegúrate de que la condición eventualmente sea falsa",
+          "Inicializa las variables antes del while"
+        ]
+      },
+      {
+        "priority": "medium",
+        "topic": "Functions",
+        "title": "Parámetros y argumentos",
+        "theory": "Los parámetros son variables que defines en la función. Los argumentos son los valores que pasas cuando llamas la función. Esta distinción es clave para funciones flexibles.",
+        "practice": {
+          "description": "Crea una función de saludo personalizado",
+          "example": "function saludar(nombre, hora) {\n  return `¡Hola ${nombre}! Son las ${hora}`;\n}\nconsole.log(saludar('Ana', 14));"
+        },
+        "pro_tips": [
+          "Puedes usar valores por defecto para parámetros",
+          "Ordena parámetros de más a menos importante"
+        ]
+      },
+      {
+        "priority": "low",
+        "topic": "Arrays",
+        "title": "Recorrer arrays con forEach",
+        "theory": "forEach es un método que ejecuta una función para cada elemento del array. Es más legible que un for tradicional cuando solo necesitas iterar sin modificar índices.",
+        "practice": {
+          "description": "Imprime cada elemento de un array de frutas",
+          "example": "const frutas = ['manzana', 'pera', 'uva'];\nfrutas.forEach(fruta => {\n  console.log(fruta);\n});"
+        },
+        "pro_tips": [
+          "forEach no puede usar break, usa for si necesitas salir",
+          "Arrow functions hacen el código más limpio"
+        ]
+      },
+      {
+        "priority": "low",
+        "topic": "Debugging",
+        "title": "Técnicas de depuración",
+        "theory": "Debuggear es el arte de encontrar y corregir errores. console.log() es tu mejor amigo inicial. También puedes usar el debugger del navegador para pausar ejecución y ver valores.",
+        "practice": {
+          "description": "Encuentra el error en un bucle que no termina",
+          "example": "// Bug: i++ está comentado\nfor (let i = 0; i < 5; /* i++ */) {\n  console.log(i);\n}"
+        },
+        "pro_tips": [
+          "Lee el mensaje de error completo, te da pistas",
+          "Comenta código para aislar el problema"
+        ]
+      }
+    ]
+  }
+}
+```
+
+</CodeGroup>
+
+## Card Distribution
+
+Always generates exactly **6 cards**:
+- **2 High Priority**: Core concepts student must master immediately
+- **2 Medium Priority**: Important supporting concepts
+- **2 Low Priority**: Enhancement topics or best practices
+
+If fewer than 6 cards are returned, a warning is logged.
+
+## Error Handling
+
+<ResponseField name="error" type="object">
+  Error details when generation fails
+  
+  <ResponseField name="status_code" type="integer">
+    HTTP status code
+  </ResponseField>
+  
+  <ResponseField name="detail" type="string">
+    Error message
+  </ResponseField>
+</ResponseField>
+
+**Common Errors**:
+- `500`: JSON parse error (AI returned invalid JSON)
+- `500`: AI generation failed
+- `502`: AI service unavailable
+
+## JSON Cleanup
+
+The endpoint automatically handles:
+- Markdown code fences (```json)
+- Extra whitespace
+- Accidental markdown formatting
+
+This ensures reliable parsing even when the LLM includes formatting artifacts.
+
+## Integration with Soft Skills
+
+Cards adapt to student profile:
+
+| Learning Style | Card Adaptation |
+|----------------|----------------|
+| Visual | Includes diagrams, flowcharts in examples |
+| Kinesthetic | Emphasizes hands-on coding exercises |
+| Mixed | Balanced theory and practice |
+
+| Problem Solving | Impact |
+|-----------------|--------|
+| Low (1-2) | More scaffolded steps, detailed examples |
+| High (4-5) | Challenging exercises, less guidance |
+
+## Performance
+
+Typical generation time: **1-2 seconds**  
+Model inference: **~800ms**  
+JSON parsing: **~50ms**

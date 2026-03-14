@@ -1,0 +1,324 @@
+---
+title: 'Login'
+description: 'Authenticate users with email and password'
+api: 'POST /api/auth/login'
+---
+
+## Endpoint
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.kairo.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "student@example.com",
+    "password": "securePassword123"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    email: 'student@example.com',
+    password: 'securePassword123'
+  }),
+  credentials: 'include' // Important for session cookies
+});
+
+const data = await response.json();
+console.log(data.user);
+```
+</CodeGroup>
+
+## Request Body
+
+<ParamField body="email" type="string" required>
+  User's email address
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password (will be compared against bcrypt hash)
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates successful authentication
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Authenticated user information
+  
+  <Expandable title="user object">
+    <ResponseField name="id" type="string">
+      User's unique identifier
+    </ResponseField>
+    
+    <ResponseField name="email" type="string">
+      User's email address
+    </ResponseField>
+    
+    <ResponseField name="fullName" type="string">
+      User's full name
+    </ResponseField>
+    
+    <ResponseField name="role" type="string">
+      User role: `coder`, `mentor`, or `admin`
+    </ResponseField>
+    
+    <ResponseField name="clanId" type="string | null">
+      User's clan/group identifier (may be null)
+    </ResponseField>
+    
+    <ResponseField name="firstLogin" type="boolean">
+      Whether this is the user's first login (triggers onboarding)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Success Response
+
+<CodeGroup>
+```json 200 - Success
+{
+  "success": true,
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "student@example.com",
+    "fullName": "María García",
+    "role": "coder",
+    "clanId": "clan-123",
+    "firstLogin": false
+  }
+}
+```
+</CodeGroup>
+
+## Error Responses
+
+<CodeGroup>
+```json 401 - Invalid Credentials
+{
+  "error": "Credenciales inválidas."
+}
+```
+
+```json 403 - OTP Verification Required
+{
+  "requiresOtp": true,
+  "error": "Debes verificar tu correo antes de ingresar. Te enviamos un nuevo código."
+}
+```
+
+```json 500 - Server Error
+{
+  "error": "Error en el login."
+}
+```
+</CodeGroup>
+
+## Authentication Flow
+
+### Standard Login
+
+1. Client sends email and password
+2. Server verifies user exists in database
+3. Password is compared against bcrypt hash
+4. **OTP verification check**: If `otp_verified` is `false`, login is blocked
+5. If verified, Passport.js creates session
+6. Session ID stored in `req.session.userId`
+7. Session cookie (`connect.sid`) sent to client
+8. User object returned in response
+
+### OTP Not Verified
+
+If the user hasn't verified their email:
+
+1. Login attempt returns `403 Forbidden`
+2. Response includes `requiresOtp: true`
+3. A new OTP code is automatically generated and sent
+4. Client should redirect to OTP verification screen
+5. User must verify OTP before logging in
+
+<Note>
+  OAuth users (Google/GitHub) are automatically marked as verified and skip OTP verification.
+</Note>
+
+## Session Persistence
+
+After successful login:
+
+- Session is stored server-side
+- `connect.sid` cookie is set in the browser
+- Cookie must be included in subsequent requests using `credentials: 'include'`
+- Session persists until logout or expiration
+
+## First Login Detection
+
+The `firstLogin` field determines post-login behavior:
+
+- `true` - Redirect to onboarding flow
+- `false` - Redirect to dashboard
+
+Clients should check this field and route accordingly:
+
+<CodeGroup>
+```javascript Example Redirect Logic
+if (data.user.firstLogin) {
+  window.location.href = '/src/views/coder/onboarding.html';
+} else {
+  window.location.href = '/src/views/coder/dashboard.html';
+}
+```
+</CodeGroup>
+
+## Security Notes
+
+<Warning>
+  - Always use HTTPS in production
+  - Never log or expose passwords
+  - Session cookies should be `httpOnly` and `secure`
+  - Implement rate limiting to prevent brute force attacks
+</Warning>
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Check Auth" icon="shield-check" href="/api/auth/login#check-auth">
+    Verify current session status
+  </Card>
+  <Card title="Logout" icon="right-from-bracket" href="/api/auth/login#logout">
+    Destroy user session
+  </Card>
+  <Card title="Verify OTP" icon="envelope-circle-check" href="/api/auth/register#verify-otp">
+    Complete email verification
+  </Card>
+</CardGroup>
+
+---
+
+## Check Auth
+
+Verify if the current session is authenticated.
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.kairo.com/api/auth/check \
+  --cookie "connect.sid=YOUR_SESSION_COOKIE"
+```
+
+```javascript JavaScript
+const response = await fetch('/api/auth/check', {
+  credentials: 'include'
+});
+
+const { authenticated, user } = await response.json();
+```
+</CodeGroup>
+
+### Response
+
+<CodeGroup>
+```json 200 - Authenticated
+{
+  "authenticated": true,
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "student@example.com",
+    "fullName": "María García",
+    "role": "coder",
+    "clanId": "clan-123",
+    "firstLogin": false
+  }
+}
+```
+
+```json 401 - Not Authenticated
+{
+  "authenticated": false
+}
+```
+</CodeGroup>
+
+---
+
+## Get Current User
+
+Retrieve the currently authenticated user (alias for `/check`).
+
+**Endpoint:** `GET /api/auth/me`
+
+**Authentication:** Required
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.kairo.com/api/auth/me \
+  --cookie "connect.sid=YOUR_SESSION_COOKIE"
+```
+
+```javascript JavaScript
+const response = await fetch('/api/auth/me', {
+  credentials: 'include'
+});
+
+const { authenticated, user } = await response.json();
+```
+</CodeGroup>
+
+Returns the same response as `/check`.
+
+---
+
+## Logout
+
+Destroy the user's session and clear cookies.
+
+**Endpoint:** `POST /api/auth/logout`
+
+**Authentication:** Required
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.kairo.com/api/auth/logout \
+  --cookie "connect.sid=YOUR_SESSION_COOKIE"
+```
+
+```javascript JavaScript
+const response = await fetch('/api/auth/logout', {
+  method: 'POST',
+  credentials: 'include'
+});
+
+const data = await response.json();
+console.log(data.message); // "Sesión cerrada."
+```
+</CodeGroup>
+
+### Response
+
+<CodeGroup>
+```json 200 - Success
+{
+  "message": "Sesión cerrada."
+}
+```
+
+```json 500 - Error
+{
+  "error": "Error al cerrar sesión."
+}
+```
+</CodeGroup>
+
+### Post-Logout
+
+After logout:
+
+1. Session is destroyed on the server
+2. `connect.sid` cookie is cleared
+3. Client should redirect to login page
+4. Subsequent authenticated requests will fail with `401`

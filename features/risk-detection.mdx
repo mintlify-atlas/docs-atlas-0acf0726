@@ -1,0 +1,521 @@
+---
+title: 'Risk Detection'
+description: 'Automated at-risk student identification with multi-factor analysis and intervention workflows'
+icon: 'shield-exclamation'
+---
+
+## Overview
+
+Kairo's risk detection system automatically identifies students who need additional support by analyzing performance metrics, engagement patterns, and soft skills data. Team Leaders receive real-time alerts with actionable insights.
+
+<Note>
+  Risk flags are **continuously evaluated** and updated as new data arrives from Moodle progress tracking and assessment results.
+</Note>
+
+## Risk Levels
+
+<CardGroup cols={4}>
+  <Card title="Low" icon="circle-check" color="#10b981">
+    No intervention needed. Student is on track.
+  </Card>
+  <Card title="Medium" icon="circle-exclamation" color="#f59e0b">
+    Monitor closely. May need support soon.
+  </Card>
+  <Card title="High" icon="triangle-exclamation" color="#ef4444">
+    Immediate attention required. Schedule intervention.
+  </Card>
+  <Card title="Critical" icon="octagon-exclamation" color="#7f1d1d">
+    Urgent intervention. Risk of dropout.
+  </Card>
+</CardGroup>
+
+## Risk Factors
+
+The system evaluates multiple dimensions to determine risk level:
+
+### Academic Performance
+
+<Accordion title="Average Score Thresholds">
+  - **Critical:** < 50% average across modules
+  - **High:** 50-60% average
+  - **Medium:** 60-70% average
+  - **Low:** > 70% average
+  
+  Scores are calculated from `moodle_progress.average_score`.
+</Accordion>
+
+<Accordion title="Struggling Topics">
+  Students who consistently score below 60% on specific topics across multiple attempts are flagged. The system tracks:
+  
+  ```javascript
+  {
+    "struggling_topics": ["SQL Joins", "Normalization", "Indexing"],
+    "topic_scores": {
+      "SQL Joins": [45, 52, 48],
+      "Normalization": [38, 42, 51]
+    }
+  }
+  ```
+  
+  **Source:** `moodle_progress.struggling_topics` (array of topic IDs)
+</Accordion>
+
+<Accordion title="Week-over-Week Decline">
+  A drop of 15+ points between consecutive weeks triggers a risk flag:
+  
+  ```javascript
+  if (currentWeekScore - previousWeekScore < -15) {
+    createRiskFlag(coderId, 'high', 'Significant score decline');
+  }
+  ```
+</Accordion>
+
+### Engagement Patterns
+
+<Accordion title="Low Attendance">
+  Students who miss 3+ consecutive sessions or have < 70% attendance rate over 2 weeks are flagged as high risk.
+  
+  **Note:** Attendance tracking integration depends on Moodle sync configuration.
+</Accordion>
+
+<Accordion title="Assignment Completion Rate">
+  Completion rate < 60% for required assignments triggers medium risk:
+  
+  ```sql
+  SELECT 
+    coder_id,
+    COUNT(*) FILTER (WHERE completed = true) / COUNT(*)::float AS completion_rate
+  FROM assignments
+  WHERE required = true
+  GROUP BY coder_id
+  HAVING COUNT(*) FILTER (WHERE completed = true) / COUNT(*)::float < 0.6
+  ```
+</Accordion>
+
+<Accordion title="Days Since Last Activity">
+  - **Medium risk:** 5+ days inactive
+  - **High risk:** 10+ days inactive
+  - **Critical risk:** 15+ days inactive
+</Accordion>
+
+### Soft Skills Indicators
+
+<Accordion title="Low Autonomy + Poor Time Management">
+  Students with both `autonomy < 2` and `time_management < 2` require structured support:
+  
+  ```javascript
+  if (softSkills.autonomy < 2 && softSkills.time_management < 2) {
+    if (averageScore < 60) {
+      createRiskFlag(coderId, 'high', 'Low self-regulation + failing scores');
+    } else {
+      createRiskFlag(coderId, 'medium', 'Low self-regulation skills');
+    }
+  }
+  ```
+</Accordion>
+
+<Accordion title="Communication + Teamwork < 2">
+  Indicates isolation risk, especially in collaborative bootcamp environments. May struggle with pair programming and group projects.
+</Accordion>
+
+## API Reference
+
+### Get Risk Reports (All Active)
+
+```javascript
+GET /api/tl/risk-flags
+Authorization: Session cookie (role: tl)
+
+// Response
+{
+  "active_risks": [
+    {
+      "id": 789,
+      "coder_id": 123,
+      "full_name": "John Doe",
+      "email": "john@example.com",
+      "risk_level": "high",
+      "reason": "Low attendance + average score 52%",
+      "created_at": "2026-03-10T15:30:00Z",
+      "resolved": false
+    },
+    {
+      "id": 790,
+      "coder_id": 124,
+      "full_name": "Jane Smith",
+      "email": "jane@example.com",
+      "risk_level": "critical",
+      "reason": "15 days inactive + failing scores",
+      "created_at": "2026-03-08T10:00:00Z",
+      "resolved": false
+    }
+  ]
+}
+```
+
+**Ordering:** Results are sorted by risk severity (critical → high → medium → low).
+
+**Implementation:** `backend-node/src/controllers/tlControllers.js:222-243`
+
+### Risk Flags in Dashboard Data
+
+Risk flags are included in the main dashboard query:
+
+```sql
+SELECT 
+  u.id, u.full_name,
+  mp.average_score, mp.current_week,
+  rf.risk_level
+FROM users u
+LEFT JOIN moodle_progress mp ON u.id = mp.coder_id
+LEFT JOIN risk_flags rf ON u.id = rf.coder_id AND rf.resolved = false
+WHERE u.role = 'coder' AND u.clan = $1
+ORDER BY
+  CASE rf.risk_level
+    WHEN 'critical' THEN 1
+    WHEN 'high'     THEN 2
+    WHEN 'medium'   THEN 3
+    ELSE 4
+  END,
+  u.full_name ASC
+```
+
+**Note:** Only **unresolved** flags (`resolved = false`) are shown in dashboards.
+
+## Data Model
+
+```sql
+CREATE TABLE risk_flags (
+  id              SERIAL PRIMARY KEY,
+  coder_id        INT NOT NULL REFERENCES users(id),
+  risk_level      VARCHAR(20) NOT NULL CHECK (risk_level IN ('low', 'medium', 'high', 'critical')),
+  reason          TEXT NOT NULL,
+  created_at      TIMESTAMP DEFAULT NOW(),
+  resolved        BOOLEAN DEFAULT false,
+  resolved_at     TIMESTAMP,
+  resolved_by     INT REFERENCES users(id),
+  resolution_note TEXT
+);
+
+CREATE INDEX idx_risk_flags_coder ON risk_flags(coder_id);
+CREATE INDEX idx_risk_flags_unresolved ON risk_flags(coder_id, resolved) WHERE resolved = false;
+CREATE INDEX idx_risk_flags_level ON risk_flags(risk_level) WHERE resolved = false;
+```
+
+## Automated Risk Detection Workflow
+
+<Steps>
+  <Step title="Moodle Data Sync">
+    Progress data is synced from Moodle at regular intervals (hourly or on-demand via webhook).
+    
+    **Updated fields:**
+    - `average_score`
+    - `current_week`
+    - `struggling_topics`
+    - `weeks_completed`
+  </Step>
+
+  <Step title="Risk Evaluation Trigger">
+    After each sync, a background job evaluates all active coders:
+    
+    ```javascript
+    // Pseudo-code for risk evaluation
+    for (const coder of activeCoders) {
+      const riskFactors = evaluateRiskFactors(coder);
+      const riskLevel = calculateRiskLevel(riskFactors);
+      
+      if (riskLevel !== 'low') {
+        upsertRiskFlag(coder.id, riskLevel, riskFactors.reason);
+      } else {
+        resolveRiskFlag(coder.id, 'Performance improved');
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Risk Flag Creation/Update">
+    If a new risk is detected, the system:
+    1. Creates a risk flag with level and reason
+    2. Sends notification to assigned Team Leader
+    3. Logs the event for analytics
+    
+    If risk improves, existing flags are marked as resolved.
+  </Step>
+
+  <Step title="Team Leader Notification">
+    Team Leaders receive real-time notifications via the notification service:
+    
+    ```javascript
+    await notifyUser(
+      tlId,
+      'High Risk Student Alert',
+      `${coder.full_name} has been flagged as high risk: ${reason}`,
+      'risk_alert',
+      riskFlagId
+    );
+    ```
+  </Step>
+</Steps>
+
+## Manual Risk Management
+
+### Resolve Risk Flag
+
+Team Leaders can manually resolve risk flags after intervention:
+
+```javascript
+PATCH /api/risk-flags/:flagId/resolve
+Content-Type: application/json
+
+{
+  "resolution_note": "Met with student, created action plan, scheduled weekly check-ins"
+}
+
+// Response
+{
+  "success": true,
+  "message": "Risk flag resolved",
+  "data": {
+    "id": 789,
+    "coder_id": 123,
+    "risk_level": "high",
+    "resolved": true,
+    "resolved_at": "2026-03-14T20:45:00Z",
+    "resolved_by": 456,
+    "resolution_note": "Met with student, created action plan, scheduled weekly check-ins"
+  }
+}
+```
+
+### Create Manual Risk Flag
+
+```javascript
+POST /api/risk-flags
+Content-Type: application/json
+
+{
+  "coder_id": 123,
+  "risk_level": "medium",
+  "reason": "Student reported personal challenges affecting study time"
+}
+```
+
+## AI Report Integration
+
+Risk data is automatically included in AI-generated Team Leader reports:
+
+```python
+# backend-python/app/routers/reports.py
+
+const { data: risks } = await supabase
+  .from('risk_flags')
+  .select('id')
+  .in('coder_id', coderIds)
+  .in('risk_level', ['high', 'critical'])
+  .eq('resolved', false);
+
+const payload = {
+  clan,
+  tl_id: user.id,
+  total_coders: coderIds.length,
+  average_score: avgScore,
+  high_risk_count: risks?.length ?? 0
+};
+
+const aiResponse = await callPythonApi('/generate-report', payload);
+```
+
+The LLM analyzes risk counts and provides specific recommendations:
+
+```javascript
+{
+  "report": {
+    "risks": "Three high-risk students require immediate attention. Two are struggling with database normalization concepts, and one has attendance issues.",
+    "action_items": [
+      "Schedule 1-on-1 sessions with John Doe and María López this week",
+      "Follow up on attendance issues with Sarah Chen",
+      "Consider peer tutoring for normalization strugglers"
+    ]
+  }
+}
+```
+
+**Implementation:** `backend-node/src/controllers/iaControllers.js:169-182`
+
+## Intervention Strategies by Risk Level
+
+### Medium Risk Interventions
+
+<CardGroup cols={2}>
+  <Card title="Proactive Check-in" icon="comments">
+    Send message via platform or email to understand challenges
+  </Card>
+  <Card title="Resource Recommendation" icon="book">
+    Share targeted learning materials for struggling topics
+  </Card>
+  <Card title="Peer Pairing" icon="users">
+    Connect with high-performing student for study partnership
+  </Card>
+  <Card title="Office Hours Invite" icon="calendar">
+    Invite to next group office hours session
+  </Card>
+</CardGroup>
+
+### High Risk Interventions
+
+<CardGroup cols={2}>
+  <Card title="1-on-1 Meeting" icon="user-clock">
+    Schedule mandatory individual session within 48 hours
+  </Card>
+  <Card title="Action Plan" icon="list-check">
+    Create written plan with specific milestones and check-ins
+  </Card>
+  <Card title="Extended Deadlines" icon="clock">
+    Provide deadline extensions with structured catch-up plan
+  </Card>
+  <Card title="Tutoring Assignment" icon="chalkboard-user">
+    Assign dedicated tutor or mentor
+  </Card>
+</CardGroup>
+
+### Critical Risk Interventions
+
+<CardGroup cols={2}>
+  <Card title="Emergency Meeting" icon="siren">
+    Same-day meeting with TL + Program Director
+  </Card>
+  <Card title="Cohort Transfer" icon="right-left">
+    Consider moving to later cohort for fresh start
+  </Card>
+  <Card title="Leave of Absence" icon="pause">
+    Evaluate if temporary break would help
+  </Card>
+  <Card title="Wellness Resources" icon="heart">
+    Connect with mental health or financial support services
+  </Card>
+</CardGroup>
+
+## Analytics & Reporting
+
+### Risk Trends Query
+
+```sql
+-- Weekly risk flag creation trends
+SELECT 
+  DATE_TRUNC('week', created_at) AS week_start,
+  risk_level,
+  COUNT(*) AS flags_created,
+  COUNT(*) FILTER (WHERE resolved = true) AS resolved_count,
+  AVG(EXTRACT(EPOCH FROM (resolved_at - created_at))/3600)::int AS avg_resolution_hours
+FROM risk_flags
+WHERE created_at > NOW() - INTERVAL '3 months'
+GROUP BY week_start, risk_level
+ORDER BY week_start DESC, risk_level;
+```
+
+### Clan Risk Comparison
+
+```sql
+-- Compare risk rates across clans
+SELECT 
+  u.clan,
+  COUNT(DISTINCT u.id) AS total_coders,
+  COUNT(DISTINCT rf.coder_id) AS coders_with_risk,
+  (COUNT(DISTINCT rf.coder_id)::float / COUNT(DISTINCT u.id) * 100)::numeric(5,2) AS risk_percentage
+FROM users u
+LEFT JOIN risk_flags rf ON u.id = rf.coder_id AND rf.resolved = false
+WHERE u.role = 'coder'
+GROUP BY u.clan
+ORDER BY risk_percentage DESC;
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Early Intervention" icon="gauge-high">
+    Act on medium-risk flags proactively. Waiting for high/critical status reduces success rates.
+  </Card>
+  
+  <Card title="Document Resolutions" icon="pen">
+    Always add resolution notes. This creates an intervention history for analytics and future reference.
+  </Card>
+  
+  <Card title="Review Weekly" icon="calendar-week">
+    Check risk flags every Monday. Stale flags indicate students falling through cracks.
+  </Card>
+  
+  <Card title="Combine with Soft Skills" icon="puzzle-piece">
+    Cross-reference risk flags with soft skills data to tailor intervention strategies.
+  </Card>
+</CardGroup>
+
+## Performance Considerations
+
+<Warning>
+  Risk evaluation can be expensive for large cohorts. Run detection jobs during off-peak hours and use database indexes aggressively.
+</Warning>
+
+### Recommended Indexes
+
+```sql
+-- Users table
+CREATE INDEX idx_users_role_clan ON users(role, clan) WHERE role = 'coder';
+
+-- Risk flags table  
+CREATE INDEX idx_risk_flags_unresolved ON risk_flags(coder_id, resolved) WHERE resolved = false;
+CREATE INDEX idx_risk_flags_created ON risk_flags(created_at DESC);
+
+-- Moodle progress table
+CREATE INDEX idx_moodle_progress_coder ON moodle_progress(coder_id);
+CREATE INDEX idx_moodle_progress_score ON moodle_progress(average_score) WHERE average_score < 70;
+```
+
+## Future Enhancements
+
+<Accordion title="Predictive Risk Modeling">
+  Use machine learning to predict risk before performance drops:
+  
+  - Analyze historical patterns of at-risk students
+  - Identify early warning signs (e.g., specific soft skills combinations)
+  - Train model on resolved vs. unresolved intervention outcomes
+  - Generate risk probability scores instead of binary flags
+</Accordion>
+
+<Accordion title="Automated Intervention Triggers">
+  Configure automatic actions for specific risk scenarios:
+  
+  ```javascript
+  {
+    "trigger": "risk_level === 'high' && autonomy < 2",
+    "action": "send_structured_study_plan",
+    "notify": ["tl", "coder"]
+  }
+  ```
+</Accordion>
+
+<Accordion title="Risk Factor Weighting">
+  Allow Team Leaders to customize risk calculation weights:
+  
+  ```javascript
+  {
+    "weights": {
+      "attendance": 0.4,
+      "average_score": 0.3,
+      "assignment_completion": 0.2,
+      "soft_skills": 0.1
+    }
+  }
+  ```
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Analytics Dashboard" href="/features/analytics-dashboard" icon="chart-line">
+    View risk metrics in Team Leader dashboard
+  </Card>
+  
+  <Card title="Soft Skills Assessment" href="/features/soft-skills-assessment" icon="brain">
+    Understand how soft skills inform risk detection
+  </Card>
+</CardGroup>

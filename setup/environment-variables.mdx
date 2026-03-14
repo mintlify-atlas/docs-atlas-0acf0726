@@ -1,0 +1,406 @@
+---
+title: Environment Variables
+description: Configure environment variables for all Kairo platform services
+---
+
+Kairo requires environment variables for both the Node.js backend and Python backend. This guide covers all required and optional configuration options.
+
+<Warning>
+  **Security Notice:** Never commit `.env` files to version control. Add `.env` to your `.gitignore` file immediately.
+</Warning>
+
+---
+
+## Node.js Backend Configuration
+
+Create a `.env` file in the `backend-node/` directory with the following variables:
+
+### Server Configuration
+
+```env
+# Server settings
+PORT=3000
+NODE_ENV=development
+```
+
+<ParamField path="PORT" type="number" default="3000">
+  The port on which the Node.js server will listen.
+</ParamField>
+
+<ParamField path="NODE_ENV" type="string" default="development">
+  Application environment. Use `production` for production deployments.
+</ParamField>
+
+### Security & Sessions
+
+```env
+# Security
+SESSION_SECRET=your_session_secret_here_minimum_32_characters
+```
+
+<ParamField path="SESSION_SECRET" type="string" required>
+  Secret key for encrypting session data. Generate a strong random string:
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  ```
+</ParamField>
+
+<Tip>
+  Generate a secure session secret using: `openssl rand -base64 32`
+</Tip>
+
+### Database Configuration (PostgreSQL/Supabase)
+
+```env
+# PostgreSQL Database
+DB_HOST=aws-0-us-west-1.pooler.supabase.com
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres.your_project_ref
+DB_PASSWORD=your_database_password
+DATABASE_URL=postgresql://postgres.your_project_ref:password@host:5432/postgres
+```
+
+<ParamField path="DB_HOST" type="string" required>
+  PostgreSQL hostname. For Supabase, find this in Project Settings → Database → Connection String.
+</ParamField>
+
+<ParamField path="DB_PORT" type="number" default="5432">
+  PostgreSQL port number.
+</ParamField>
+
+<ParamField path="DB_NAME" type="string" default="postgres">
+  Database name.
+</ParamField>
+
+<ParamField path="DB_USER" type="string" required>
+  Database user. For Supabase: `postgres.your_project_ref`
+</ParamField>
+
+<ParamField path="DB_PASSWORD" type="string" required>
+  Database password. Set in Supabase Project Settings → Database.
+</ParamField>
+
+<ParamField path="DATABASE_URL" type="string" required>
+  Complete PostgreSQL connection string. Format:
+  ```
+  postgresql://[user]:[password]@[host]:[port]/[database]
+  ```
+</ParamField>
+
+### Supabase Configuration
+
+```env
+# Supabase
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY=your_anon_key
+```
+
+<ParamField path="SUPABASE_URL" type="string" required>
+  Your Supabase project URL. Find in Project Settings → API → Project URL.
+</ParamField>
+
+<ParamField path="SUPABASE_ANON_KEY" type="string" required>
+  Supabase anonymous/public key. Find in Project Settings → API → anon public.
+</ParamField>
+
+### Service URLs
+
+```env
+# Service connections
+FRONTEND_URL=http://127.0.0.1:5500/frontend
+PYTHON_API_URL=http://localhost:8000
+```
+
+<ParamField path="FRONTEND_URL" type="string" default="http://127.0.0.1:5500/frontend">
+  Frontend application URL for CORS and OAuth redirects.
+</ParamField>
+
+<ParamField path="PYTHON_API_URL" type="string" default="http://localhost:8000">
+  Python AI microservice URL.
+</ParamField>
+
+### OAuth Authentication
+
+#### GitHub OAuth
+
+```env
+# GitHub OAuth
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+```
+
+<Steps>
+  <Step title="Create GitHub OAuth App">
+    1. Go to GitHub Settings → Developer Settings → OAuth Apps
+    2. Click "New OAuth App"
+    3. Set **Homepage URL**: `http://localhost:3000`
+    4. Set **Authorization callback URL**: `http://localhost:3000/auth/github/callback`
+  </Step>
+  <Step title="Copy Credentials">
+    Copy the Client ID and generate a new Client Secret.
+  </Step>
+</Steps>
+
+#### Google OAuth
+
+```env
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+```
+
+<Steps>
+  <Step title="Create Google OAuth App">
+    1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+    2. Create a new project or select existing
+    3. Enable Google+ API
+    4. Go to Credentials → Create Credentials → OAuth 2.0 Client ID
+  </Step>
+  <Step title="Configure OAuth Consent Screen">
+    Set up the OAuth consent screen with your application details.
+  </Step>
+  <Step title="Add Authorized Redirect URIs">
+    Add: `http://localhost:3000/auth/google/callback`
+  </Step>
+</Steps>
+
+### Email Configuration (SMTP)
+
+```env
+# SMTP for email notifications
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_specific_password
+SMTP_FROM="Kairo Learning Platform <your_email@gmail.com>"
+```
+
+<ParamField path="SMTP_HOST" type="string" default="smtp.gmail.com">
+  SMTP server hostname.
+</ParamField>
+
+<ParamField path="SMTP_PORT" type="number" default="465">
+  SMTP port (465 for SSL, 587 for TLS).
+</ParamField>
+
+<ParamField path="SMTP_SECURE" type="boolean" default="true">
+  Use SSL/TLS encryption.
+</ParamField>
+
+<ParamField path="SMTP_USER" type="string" required>
+  SMTP authentication username (email address).
+</ParamField>
+
+<ParamField path="SMTP_PASS" type="string" required>
+  SMTP password. For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833).
+</ParamField>
+
+<Note>
+  **Gmail Setup:** Enable 2-factor authentication and generate an App Password in Google Account Settings → Security → App Passwords.
+</Note>
+
+### AI Service Key
+
+```env
+# AI API Key
+RIWI_IA_KEY=your_internal_ai_service_key
+```
+
+<ParamField path="RIWI_IA_KEY" type="string" required>
+  Internal API key for authenticating requests between Node.js and Python backends.
+</ParamField>
+
+---
+
+## Python Backend Configuration
+
+Create a `.env` file in the `backend-python/` directory:
+
+### Server Configuration
+
+```env
+# Python server
+PORT=8000
+ENV=development
+```
+
+<ParamField path="PORT" type="number" default="8000">
+  Port for the FastAPI server.
+</ParamField>
+
+<ParamField path="ENV" type="string" default="development">
+  Environment mode (development/production).
+</ParamField>
+
+### Groq AI Configuration
+
+```env
+# Groq API
+OPENAI_API_KEY=gsk_your_groq_api_key_here
+MODEL_NAME=llama-3.3-70b-versatile
+```
+
+<ParamField path="OPENAI_API_KEY" type="string" required>
+  Groq API key (uses OpenAI-compatible format). Get your key from [Groq Console](https://console.groq.com/keys).
+</ParamField>
+
+<ParamField path="MODEL_NAME" type="string" default="llama-3.3-70b-versatile">
+  AI model to use. Recommended options:
+  - `llama-3.3-70b-versatile` (default, best balance)
+  - `mixtral-8x7b-32768` (longer context)
+  - `qwen2.5-7b-instruct` (original Kairo model)
+</ParamField>
+
+<Note>
+  See [AI Configuration](/setup/ai-configuration) for detailed model setup instructions.
+</Note>
+
+### Supabase Configuration
+
+```env
+# Supabase
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_KEY=your_service_role_key
+```
+
+<ParamField path="SUPABASE_URL" type="string" required>
+  Same as Node.js backend. Your Supabase project URL.
+</ParamField>
+
+<ParamField path="SUPABASE_SERVICE_KEY" type="string" required>
+  Supabase service role key (has elevated permissions). Find in Project Settings → API → service_role.
+</ParamField>
+
+<Warning>
+  The `SUPABASE_SERVICE_KEY` has admin privileges. Never expose it in frontend code or public repositories.
+</Warning>
+
+### Service URLs
+
+```env
+# Service connections
+NODE_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:5500
+```
+
+<ParamField path="NODE_URL" type="string" default="http://localhost:3000">
+  Node.js backend URL for inter-service communication.
+</ParamField>
+
+<ParamField path="FRONTEND_URL" type="string" default="http://localhost:5500">
+  Frontend URL for CORS configuration.
+</ParamField>
+
+---
+
+## Environment Variables Checklist
+
+### Node.js Backend (`backend-node/.env`)
+
+- [ ] `PORT` - Server port
+- [ ] `NODE_ENV` - Environment mode
+- [ ] `SESSION_SECRET` - Session encryption key
+- [ ] `DB_HOST` - Database host
+- [ ] `DB_PORT` - Database port
+- [ ] `DB_NAME` - Database name
+- [ ] `DB_USER` - Database user
+- [ ] `DB_PASSWORD` - Database password
+- [ ] `DATABASE_URL` - Full connection string
+- [ ] `SUPABASE_URL` - Supabase project URL
+- [ ] `SUPABASE_ANON_KEY` - Supabase anon key
+- [ ] `FRONTEND_URL` - Frontend URL
+- [ ] `PYTHON_API_URL` - Python service URL
+- [ ] `GITHUB_CLIENT_ID` - GitHub OAuth ID (optional)
+- [ ] `GITHUB_CLIENT_SECRET` - GitHub OAuth secret (optional)
+- [ ] `GOOGLE_CLIENT_ID` - Google OAuth ID (optional)
+- [ ] `GOOGLE_CLIENT_SECRET` - Google OAuth secret (optional)
+- [ ] `SMTP_HOST` - Email server
+- [ ] `SMTP_PORT` - Email port
+- [ ] `SMTP_SECURE` - Use SSL
+- [ ] `SMTP_USER` - Email username
+- [ ] `SMTP_PASS` - Email password
+- [ ] `SMTP_FROM` - From address
+- [ ] `RIWI_IA_KEY` - AI service key
+
+### Python Backend (`backend-python/.env`)
+
+- [ ] `PORT` - Server port
+- [ ] `ENV` - Environment mode
+- [ ] `OPENAI_API_KEY` - Groq API key
+- [ ] `MODEL_NAME` - AI model name
+- [ ] `SUPABASE_URL` - Supabase URL
+- [ ] `SUPABASE_SERVICE_KEY` - Supabase service key
+- [ ] `NODE_URL` - Node.js backend URL
+- [ ] `FRONTEND_URL` - Frontend URL
+
+---
+
+## Example Configuration Files
+
+### Complete Node.js `.env` Example
+
+```env backend-node/.env
+PORT=3000
+NODE_ENV=development
+
+SESSION_SECRET=abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
+
+DB_HOST=aws-0-us-west-1.pooler.supabase.com
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres.abcdefghijklmnop
+DB_PASSWORD=your_secure_password_here
+DATABASE_URL=postgresql://postgres.abcdefghijklmnop:your_password@aws-0-us-west-1.pooler.supabase.com:5432/postgres
+
+SUPABASE_URL=https://abcdefghijklmnop.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+FRONTEND_URL=http://127.0.0.1:5500/frontend
+PYTHON_API_URL=http://localhost:8000
+
+GITHUB_CLIENT_ID=Iv1.a1b2c3d4e5f6g7h8
+GITHUB_CLIENT_SECRET=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0
+
+GOOGLE_CLIENT_ID=123456789012-abc123def456.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-abc123def456ghi789
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=kairo@example.com
+SMTP_PASS=abcd efgh ijkl mnop
+SMTP_FROM="Kairo Learning Platform <kairo@example.com>"
+
+RIWI_IA_KEY=kairo_ai_service_key_2026
+```
+
+### Complete Python `.env` Example
+
+```env backend-python/.env
+PORT=8000
+ENV=development
+
+OPENAI_API_KEY=gsk_abc123def456ghi789jkl012mno345pqr678
+MODEL_NAME=llama-3.3-70b-versatile
+
+SUPABASE_URL=https://abcdefghijklmnop.supabase.co
+SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+NODE_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:5500
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Setup" icon="database" href="/setup/database-setup">
+    Initialize the PostgreSQL schema
+  </Card>
+  <Card title="AI Configuration" icon="brain" href="/setup/ai-configuration">
+    Configure AI models and embeddings
+  </Card>
+</CardGroup>

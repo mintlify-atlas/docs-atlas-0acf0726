@@ -1,0 +1,544 @@
+---
+title: 'Register'
+description: 'Create new user accounts with email verification'
+api: 'POST /api/auth/register'
+---
+
+## Registration Flow
+
+The registration process uses a two-step verification system:
+
+1. **Register** - Submit user details, receive OTP via email
+2. **Verify OTP** - Confirm email ownership, create account and session
+
+<Note>
+  The user account is not created until the OTP is successfully verified. Registration data is temporarily stored in the session.
+</Note>
+
+---
+
+## Register
+
+Initiate the registration process by submitting user information.
+
+**Endpoint:** `POST /api/auth/register`
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.kairo.com/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "newstudent@example.com",
+    "password": "SecurePass123!",
+    "fullName": "Juan Pérez",
+    "role": "coder",
+    "clanId": "clan-456"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/auth/register', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    email: 'newstudent@example.com',
+    password: 'SecurePass123!',
+    fullName: 'Juan Pérez',
+    role: 'coder',
+    clanId: 'clan-456'
+  }),
+  credentials: 'include' // Important for session
+});
+
+const data = await response.json();
+console.log(data.message); // OTP sent confirmation
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  User's email address (must be unique)
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password (will be hashed with bcrypt)
+</ParamField>
+
+<ParamField body="fullName" type="string" required>
+  User's full name for display
+</ParamField>
+
+<ParamField body="role" type="string" default="coder">
+  User role: `coder`, `mentor`, or `admin`. Defaults to `coder` if not provided.
+</ParamField>
+
+<ParamField body="clanId" type="string">
+  Optional clan/group identifier to assign the user to
+</ParamField>
+
+### Success Response
+
+<CodeGroup>
+```json 201 - OTP Sent
+{
+  "message": "Código enviado. Verifica tu correo para completar el registro.",
+  "email": "newstudent@example.com"
+}
+```
+</CodeGroup>
+
+### Error Responses
+
+<CodeGroup>
+```json 409 - Email Already Exists
+{
+  "error": "El correo ya está registrado."
+}
+```
+
+```json 500 - Server Error
+{
+  "error": "Error al iniciar el registro."
+}
+```
+</CodeGroup>
+
+### What Happens
+
+1. System checks if email already exists in database
+2. Password is hashed using bcrypt (10 rounds)
+3. 6-digit OTP code is generated
+4. Registration data is stored in `req.session.pendingRegistration`:
+   ```javascript
+   {
+     email: "newstudent@example.com",
+     password: "$2b$10$hashed...",
+     fullName: "Juan Pérez",
+     role: "coder",
+     clan: "clan-456",
+     otp: {
+       code: "123456",
+       expiresAt: 1234567890000, // 15 minutes from now
+       attempts: 0
+     }
+   }
+   ```
+5. OTP email is sent to the user
+6. Session cookie is returned to maintain state for verification
+
+<Warning>
+  The user account is **not created** at this stage. It will be created only after OTP verification.
+</Warning>
+
+---
+
+## Verify OTP
+
+Complete registration by verifying the OTP code sent to the user's email.
+
+**Endpoint:** `POST /api/auth/verify-otp`
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.kairo.com/api/auth/verify-otp \
+  -H "Content-Type: application/json" \
+  --cookie "connect.sid=YOUR_SESSION_COOKIE" \
+  -d '{
+    "email": "newstudent@example.com",
+    "code": "123456"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/auth/verify-otp', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    email: 'newstudent@example.com',
+    code: '123456'
+  }),
+  credentials: 'include' // Must include session cookie
+});
+
+const data = await response.json();
+if (data.success) {
+  // Registration complete, user is now logged in
+  console.log(data.user);
+}
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  Email address used during registration
+</ParamField>
+
+<ParamField body="code" type="string" required>
+  6-digit OTP code received via email
+</ParamField>
+
+### Success Response
+
+<CodeGroup>
+```json 200 - Verified & Logged In
+{
+  "success": true,
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "newstudent@example.com",
+    "fullName": "Juan Pérez",
+    "role": "coder",
+    "clanId": "clan-456",
+    "firstLogin": true
+  }
+}
+```
+</CodeGroup>
+
+### Error Responses
+
+<CodeGroup>
+```json 400 - Invalid Code
+{
+  "error": "Código incorrecto."
+}
+```
+
+```json 400 - Expired Code
+{
+  "error": "El código ha expirado."
+}
+```
+
+```json 400 - Missing Parameters
+{
+  "error": "Email y código son requeridos."
+}
+```
+
+```json 429 - Too Many Attempts
+{
+  "error": "Demasiados intentos. Regístrate de nuevo."
+}
+```
+
+```json 500 - Server Error
+{
+  "error": "Error de verificación."
+}
+```
+</CodeGroup>
+
+### Verification Process
+
+#### Case 1: Pending Registration (New User)
+
+1. System retrieves `pendingRegistration` from session
+2. Verifies email matches the pending registration
+3. Checks if code matches (`attempts` incremented on failure)
+4. After 5 failed attempts, registration is cleared (must restart)
+5. Checks if code is expired (15 minutes)
+6. If valid:
+   - User record is created in database with:
+     - Hashed password
+     - `otp_verified: true`
+     - `first_login: true`
+   - Passport.js creates session
+   - `req.session.userId` is set
+   - `pendingRegistration` is deleted from session
+   - User object is returned
+   - User is now authenticated
+
+#### Case 2: Existing Unverified User (Fallback)
+
+For users who registered but never verified (legacy flow):
+
+1. System checks `otp_verifications` table in database
+2. Looks for matching email, code, unused and not expired
+3. If found:
+   - Marks OTP as used
+   - Updates user's `otp_verified` to `true`
+   - Creates session and logs user in
+
+<Note>
+  Most registrations use Case 1 (session-based). Case 2 handles edge cases where the user exists in the database but hasn't verified.
+</Note>
+
+### OTP Security
+
+- **Expiration:** 15 minutes from generation
+- **Max Attempts:** 5 incorrect attempts before invalidation
+- **Single Use:** Codes can only be used once
+- **Invalidation:** Previous codes are invalidated when new ones are generated
+
+---
+
+## Resend OTP
+
+Request a new OTP code if the previous one expired or was lost.
+
+**Endpoint:** `POST /api/auth/resend-otp`
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.kairo.com/api/auth/resend-otp \
+  -H "Content-Type: application/json" \
+  --cookie "connect.sid=YOUR_SESSION_COOKIE" \
+  -d '{
+    "email": "newstudent@example.com"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/auth/resend-otp', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    email: 'newstudent@example.com'
+  }),
+  credentials: 'include'
+});
+
+const data = await response.json();
+console.log(data.message); // "OTP reenviado."
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  Email address that needs a new OTP code
+</ParamField>
+
+### Success Response
+
+<CodeGroup>
+```json 200 - OTP Resent
+{
+  "success": true,
+  "message": "OTP reenviado."
+}
+```
+</CodeGroup>
+
+### Error Responses
+
+<CodeGroup>
+```json 400 - Missing Email
+{
+  "error": "Email requerido."
+}
+```
+
+```json 400 - Already Verified
+{
+  "error": "El correo ya está verificado."
+}
+```
+
+```json 404 - User Not Found
+{
+  "error": "Usuario no encontrado."
+}
+```
+
+```json 500 - Server Error
+{
+  "error": "Error al reenviar el código."
+}
+```
+</CodeGroup>
+
+### Rate Limiting
+
+<Warning>
+  This endpoint is rate-limited to **3 requests per 10 minutes** to prevent abuse.
+</Warning>
+
+### Resend Process
+
+1. **For Pending Registrations:**
+   - Updates the OTP code in session
+   - Resets expiration to 15 minutes
+   - Resets attempt counter to 0
+   - Sends new email
+
+2. **For Existing Unverified Users:**
+   - Invalidates all previous unused codes in database
+   - Inserts new OTP record with 5-minute expiration
+   - Sends new email
+
+---
+
+## Complete Onboarding
+
+Mark the user's first login as complete after onboarding.
+
+**Endpoint:** `PATCH /api/auth/complete-onboarding`
+
+**Authentication:** Required (must be logged in)
+
+**Authorization:** `coder` role required
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.kairo.com/api/auth/complete-onboarding \
+  -H "Content-Type: application/json" \
+  --cookie "connect.sid=YOUR_SESSION_COOKIE" \
+  -d '{
+    "clanId": "clan-789"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/auth/complete-onboarding', {
+  method: 'PATCH',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    clanId: 'clan-789'
+  }),
+  credentials: 'include'
+});
+
+const data = await response.json();
+console.log(data.message); // "Onboarding completado."
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="clanId" type="string">
+  Optional clan/group to assign during onboarding
+</ParamField>
+
+### Response
+
+<CodeGroup>
+```json 200 - Success
+{
+  "success": true,
+  "message": "Onboarding completado."
+}
+```
+
+```json 500 - Error
+{
+  "error": "Error al actualizar estado."
+}
+```
+</CodeGroup>
+
+### What Changes
+
+- `first_login` is set to `false`
+- If `clanId` provided, user's clan is updated
+- Next login will skip onboarding and go to dashboard
+
+---
+
+## Update Profile
+
+Update user's profile information.
+
+**Endpoint:** `PATCH /api/auth/profile`
+
+**Authentication:** Required
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.kairo.com/api/auth/profile \
+  -H "Content-Type: application/json" \
+  --cookie "connect.sid=YOUR_SESSION_COOKIE" \
+  -d '{
+    "fullName": "Juan Carlos Pérez",
+    "clanId": "clan-999"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/auth/profile', {
+  method: 'PATCH',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    fullName: 'Juan Carlos Pérez',
+    clanId: 'clan-999'
+  }),
+  credentials: 'include'
+});
+
+const { user } = await response.json();
+console.log(user); // Updated user object
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="fullName" type="string">
+  Updated full name
+</ParamField>
+
+<ParamField body="clanId" type="string">
+  Updated clan/group assignment
+</ParamField>
+
+### Response
+
+<CodeGroup>
+```json 200 - Success
+{
+  "success": true,
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "newstudent@example.com",
+    "full_name": "Juan Carlos Pérez",
+    "role": "coder",
+    "clan": "clan-999",
+    "first_login": false,
+    "otp_verified": true
+  }
+}
+```
+
+```json 500 - Error
+{
+  "error": "Error al actualizar perfil."
+}
+```
+</CodeGroup>
+
+---
+
+## Email Template
+
+OTP emails are sent using the configured SMTP service (Nodemailer):
+
+**Subject:** Verification code for Kairo Learning Platform
+
+**Body:**
+```
+Hola [fullName],
+
+Tu código de verificación es: [123456]
+
+Este código expira en 15 minutos.
+
+Si no solicitaste este código, ignora este mensaje.
+
+- Equipo Kairo
+```
+
+<Note>
+  Email sending failures during registration don't block the process. Users can request a new code via the resend endpoint.
+</Note>

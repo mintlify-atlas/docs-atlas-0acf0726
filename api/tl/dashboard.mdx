@@ -1,0 +1,253 @@
+---
+title: 'Team Leader Dashboard'
+description: 'Get comprehensive clan overview with student metrics and soft skills analysis'
+---
+
+## Get Dashboard Data
+
+<RequestExample>
+```bash cURL
+curl -X GET https://api.kairolearning.com/api/tl/dashboard \
+  -H "Cookie: session_id=your_session_token"
+```
+
+```javascript JavaScript
+const response = await fetch('/api/tl/dashboard', {
+  method: 'GET',
+  credentials: 'include'
+});
+const data = await response.json();
+console.log(data.overview);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'https://api.kairolearning.com/api/tl/dashboard',
+    cookies={'session_id': 'your_session_token'}
+)
+data = response.json()
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "tl": {
+    "fullName": "María González",
+    "clanId": "clan-alpha"
+  },
+  "coders": [
+    {
+      "id": 42,
+      "full_name": "Juan Pérez",
+      "email": "juan@example.com",
+      "first_login": null,
+      "clan_id": "clan-alpha",
+      "average_score": 85.5,
+      "current_week": 3,
+      "autonomy": 4.2,
+      "time_management": 3.8,
+      "problem_solving": 4.5,
+      "communication": 4.0,
+      "teamwork": 4.3,
+      "learning_style": "visual",
+      "risk_level": null
+    },
+    {
+      "id": 43,
+      "full_name": "Ana López",
+      "email": "ana@example.com",
+      "first_login": true,
+      "clan_id": "clan-alpha",
+      "average_score": 62.0,
+      "current_week": 2,
+      "autonomy": 3.1,
+      "time_management": 2.9,
+      "problem_solving": 3.5,
+      "communication": 3.8,
+      "teamwork": 3.6,
+      "learning_style": "kinesthetic",
+      "risk_level": "high"
+    }
+  ],
+  "overview": {
+    "totalCoders": 24,
+    "completedOnboarding": 20,
+    "pendingOnboarding": 4,
+    "highRiskCoders": 3,
+    "clanAvgScore": "78.6"
+  },
+  "softSkillsAverage": {
+    "autonomy": 3.8,
+    "time_management": 3.6,
+    "problem_solving": 4.1,
+    "communication": 3.9,
+    "teamwork": 4.0
+  }
+}
+```
+</ResponseExample>
+
+### Endpoint
+
+```
+GET /api/tl/dashboard
+```
+
+### Description
+
+Retrieves comprehensive dashboard data for the Team Leader's clan, including:
+- All students (coders) in the clan with their progress and soft skills assessments
+- Aggregated clan-level metrics (average score, onboarding status, risk flags)
+- Clan-wide soft skills averages calculated from completed assessments
+
+### Authentication
+
+Requires active session with `tl` (Team Leader) role.
+
+### Response Fields
+
+<ResponseField name="tl" type="object">
+  Team Leader information
+  
+  <ResponseField name="fullName" type="string">
+    Full name of the Team Leader
+  </ResponseField>
+  
+  <ResponseField name="clanId" type="string">
+    Clan identifier assigned to this Team Leader
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="coders" type="array">
+  Array of all students in the clan
+  
+  <ResponseField name="id" type="integer">
+    Student user ID
+  </ResponseField>
+  
+  <ResponseField name="full_name" type="string">
+    Student's full name
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    Student's email address
+  </ResponseField>
+  
+  <ResponseField name="first_login" type="boolean | null">
+    Onboarding status. `null` if completed, `true` if pending
+  </ResponseField>
+  
+  <ResponseField name="clan_id" type="string">
+    Clan identifier
+  </ResponseField>
+  
+  <ResponseField name="average_score" type="number | null">
+    Average Moodle quiz score across all completed weeks
+  </ResponseField>
+  
+  <ResponseField name="current_week" type="integer | null">
+    Current week of course progression
+  </ResponseField>
+  
+  <ResponseField name="autonomy" type="number | null">
+    Autonomy soft skill rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="time_management" type="number | null">
+    Time management soft skill rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="problem_solving" type="number | null">
+    Problem solving soft skill rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="communication" type="number | null">
+    Communication soft skill rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="teamwork" type="number | null">
+    Teamwork soft skill rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="learning_style" type="string | null">
+    Identified learning style: `visual`, `auditory`, `kinesthetic`, or `reading_writing`
+  </ResponseField>
+  
+  <ResponseField name="risk_level" type="string | null">
+    Active risk flag level: `critical`, `high`, `medium`, or `null` if no active risk
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="overview" type="object">
+  Aggregated clan-level metrics
+  
+  <ResponseField name="totalCoders" type="integer">
+    Total number of students in the clan
+  </ResponseField>
+  
+  <ResponseField name="completedOnboarding" type="integer">
+    Number of students who completed onboarding (`first_login = null`)
+  </ResponseField>
+  
+  <ResponseField name="pendingOnboarding" type="integer">
+    Number of students with pending onboarding
+  </ResponseField>
+  
+  <ResponseField name="highRiskCoders" type="integer">
+    Count of students with unresolved `high` or `critical` risk flags
+  </ResponseField>
+  
+  <ResponseField name="clanAvgScore" type="string">
+    Clan average Moodle score formatted to 1 decimal place
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="softSkillsAverage" type="object">
+  Clan-wide soft skills averages (only from students who completed the assessment)
+  
+  <ResponseField name="autonomy" type="number">
+    Average autonomy rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="time_management" type="number">
+    Average time management rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="problem_solving" type="number">
+    Average problem solving rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="communication" type="number">
+    Average communication rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="teamwork" type="number">
+    Average teamwork rating (1-5)
+  </ResponseField>
+</ResponseField>
+
+### Error Responses
+
+<ResponseField name="404" type="object">
+  Team Leader not found
+  ```json
+  { "error": "TL not found" }
+  ```
+</ResponseField>
+
+<ResponseField name="500" type="object">
+  Server error during data retrieval
+  ```json
+  { "error": "Error loading dashboard data" }
+  ```
+</ResponseField>
+
+### Implementation Notes
+
+- Uses LEFT JOIN to include students who haven't completed onboarding or soft skills assessment
+- Soft skills averages exclude students who haven't completed the assessment to avoid skewing data
+- Risk levels are filtered to show only unresolved flags
+- Students are ordered alphabetically by full name

@@ -1,0 +1,453 @@
+---
+title: 'Student Management'
+description: 'Access student details, clan rosters, and submit feedback'
+---
+
+## Get Clan Students
+
+<RequestExample>
+```bash cURL
+curl -X GET https://api.kairolearning.com/api/tl/coders/clan/clan-alpha \
+  -H "Cookie: session_id=your_session_token"
+```
+
+```javascript JavaScript
+const clanId = 'clan-alpha';
+const response = await fetch(`/api/tl/coders/clan/${clanId}`, {
+  credentials: 'include'
+});
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+clan_id = 'clan-alpha'
+response = requests.get(
+    f'https://api.kairolearning.com/api/tl/coders/clan/{clan_id}',
+    cookies={'session_id': 'your_session_token'}
+)
+data = response.json()
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "clan": "clan-alpha",
+  "total": 3,
+  "coders": [
+    {
+      "id": 15,
+      "full_name": "Carlos Ruiz",
+      "email": "carlos@example.com",
+      "average_score": 58.0,
+      "current_week": 2,
+      "risk_level": "critical",
+      "risk_reason": "Two consecutive weeks below 60% average"
+    },
+    {
+      "id": 22,
+      "full_name": "Laura Torres",
+      "email": "laura@example.com",
+      "average_score": 68.5,
+      "current_week": 3,
+      "risk_level": "high",
+      "risk_reason": "Average score below 70% threshold"
+    },
+    {
+      "id": 8,
+      "full_name": "Miguel Fernández",
+      "email": "miguel@example.com",
+      "average_score": 88.2,
+      "current_week": 4,
+      "risk_level": null,
+      "risk_reason": null
+    }
+  ]
+}
+```
+</ResponseExample>
+
+### Endpoint
+
+```
+GET /api/tl/coders/clan/:clan_id
+```
+
+### Description
+
+Retrieves all students (coders) in a specified clan with their latest progress metrics and unresolved risk flags. Results are ordered by risk severity (critical → high → medium → none) and then alphabetically by name.
+
+### Path Parameters
+
+<ParamField path="clan_id" type="string" required>
+  The clan identifier (e.g., `clan-alpha`, `clan-bravo`)
+</ParamField>
+
+### Authentication
+
+Requires active session with `tl` (Team Leader) role.
+
+### Response Fields
+
+<ResponseField name="clan" type="string">
+  The clan ID from the request
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  Total number of students in the clan
+</ResponseField>
+
+<ResponseField name="coders" type="array">
+  Array of student records with risk prioritization
+  
+  <ResponseField name="id" type="integer">
+    Student user ID
+  </ResponseField>
+  
+  <ResponseField name="full_name" type="string">
+    Student's full name
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    Student's email address
+  </ResponseField>
+  
+  <ResponseField name="average_score" type="number | null">
+    Average Moodle quiz score across completed weeks
+  </ResponseField>
+  
+  <ResponseField name="current_week" type="integer | null">
+    Current week of course progression
+  </ResponseField>
+  
+  <ResponseField name="risk_level" type="string | null">
+    Active risk flag level: `critical`, `high`, `medium`, or `null`
+  </ResponseField>
+  
+  <ResponseField name="risk_reason" type="string | null">
+    Explanation of why the risk flag was raised
+  </ResponseField>
+</ResponseField>
+
+### Error Responses
+
+<ResponseField name="500" type="object">
+  Server error during data retrieval
+  ```json
+  { "error": "Failed to fetch clan data" }
+  ```
+</ResponseField>
+
+---
+
+## Get Student Details
+
+<RequestExample>
+```bash cURL
+curl -X GET https://api.kairolearning.com/api/tl/coder/42/details \
+  -H "Cookie: session_id=your_session_token"
+```
+
+```javascript JavaScript
+const coderId = 42;
+const response = await fetch(`/api/tl/coder/${coderId}/details`, {
+  credentials: 'include'
+});
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+coder_id = 42
+response = requests.get(
+    f'https://api.kairolearning.com/api/tl/coder/{coder_id}/details',
+    cookies={'session_id': 'your_session_token'}
+)
+data = response.json()
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "coder": {
+    "id": 42,
+    "full_name": "Juan Pérez",
+    "email": "juan@example.com",
+    "clan_id": "clan-alpha",
+    "created_at": "2026-01-15T10:30:00.000Z",
+    "joined_date": "15/01/2026",
+    "average_score": 85.5,
+    "current_week": 3,
+    "weeks_completed": 2,
+    "autonomy": 4.2,
+    "time_management": 3.8,
+    "problem_solving": 4.5,
+    "communication": 4.0,
+    "teamwork": 4.3,
+    "learning_style": "visual",
+    "clanId": "clan-alpha"
+  }
+}
+```
+</ResponseExample>
+
+### Endpoint
+
+```
+GET /api/tl/coder/:id/details
+```
+
+### Description
+
+Retrieves comprehensive details for a specific student, including Moodle progress and soft skills assessment results.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The student's user ID
+</ParamField>
+
+### Authentication
+
+Requires active session with `tl` (Team Leader) role.
+
+### Response Fields
+
+<ResponseField name="coder" type="object">
+  Complete student profile
+  
+  <ResponseField name="id" type="integer">
+    Student user ID
+  </ResponseField>
+  
+  <ResponseField name="full_name" type="string">
+    Student's full name
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    Student's email address
+  </ResponseField>
+  
+  <ResponseField name="clan_id" type="string">
+    Clan identifier
+  </ResponseField>
+  
+  <ResponseField name="clanId" type="string">
+    Duplicate clan identifier for frontend compatibility
+  </ResponseField>
+  
+  <ResponseField name="created_at" type="string">
+    ISO 8601 timestamp of account creation
+  </ResponseField>
+  
+  <ResponseField name="joined_date" type="string">
+    Formatted join date (DD/MM/YYYY)
+  </ResponseField>
+  
+  <ResponseField name="average_score" type="number | null">
+    Average Moodle quiz score
+  </ResponseField>
+  
+  <ResponseField name="current_week" type="integer | null">
+    Current week in course
+  </ResponseField>
+  
+  <ResponseField name="weeks_completed" type="integer | null">
+    Number of weeks completed
+  </ResponseField>
+  
+  <ResponseField name="autonomy" type="number | null">
+    Autonomy soft skill rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="time_management" type="number | null">
+    Time management soft skill rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="problem_solving" type="number | null">
+    Problem solving soft skill rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="communication" type="number | null">
+    Communication soft skill rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="teamwork" type="number | null">
+    Teamwork soft skill rating (1-5)
+  </ResponseField>
+  
+  <ResponseField name="learning_style" type="string | null">
+    Identified learning style: `visual`, `auditory`, `kinesthetic`, or `reading_writing`
+  </ResponseField>
+</ResponseField>
+
+### Error Responses
+
+<ResponseField name="404" type="object">
+  Student not found
+  ```json
+  { "error": "Coder not found" }
+  ```
+</ResponseField>
+
+<ResponseField name="500" type="object">
+  Server error during data retrieval
+  ```json
+  { "error": "Failed to fetch coder details" }
+  ```
+</ResponseField>
+
+---
+
+## Submit Feedback
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.kairolearning.com/api/tl/feedback \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session_id=your_session_token" \
+  -d '{
+    "coderId": 42,
+    "feedbackText": "Great progress on the React module! Focus on improving error handling in your API calls.",
+    "feedbackType": "technical"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('/api/tl/feedback', {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    coderId: 42,
+    feedbackText: 'Great progress on the React module! Focus on improving error handling in your API calls.',
+    feedbackType: 'technical'
+  })
+});
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://api.kairolearning.com/api/tl/feedback',
+    cookies={'session_id': 'your_session_token'},
+    json={
+        'coderId': 42,
+        'feedbackText': 'Great progress on the React module! Focus on improving error handling in your API calls.',
+        'feedbackType': 'technical'
+    }
+)
+data = response.json()
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "success": true,
+  "message": "Feedback registered",
+  "data": {
+    "id": 128,
+    "coder_id": 42,
+    "tl_id": 5,
+    "feedback_text": "Great progress on the React module! Focus on improving error handling in your API calls.",
+    "feedback_type": "technical",
+    "created_at": "2026-03-14T15:45:00.000Z"
+  }
+}
+```
+</ResponseExample>
+
+### Endpoint
+
+```
+POST /api/tl/feedback
+```
+
+### Description
+
+Submits feedback from a Team Leader to a student. Automatically sends a real-time notification to the student.
+
+### Authentication
+
+Requires active session with `tl` (Team Leader) role. The TL ID is extracted from the session.
+
+### Request Body
+
+<ParamField body="coderId" type="integer" required>
+  The student's user ID
+</ParamField>
+
+<ParamField body="feedbackText" type="string" required>
+  The feedback message content (sanitized on server)
+</ParamField>
+
+<ParamField body="feedbackType" type="string" required>
+  Category of feedback (e.g., `technical`, `behavioral`, `progress`, `soft_skills`)
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">
+  Indicates if the feedback was successfully registered
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Status message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The created feedback record
+  
+  <ResponseField name="id" type="integer">
+    Feedback record ID
+  </ResponseField>
+  
+  <ResponseField name="coder_id" type="integer">
+    Student user ID
+  </ResponseField>
+  
+  <ResponseField name="tl_id" type="integer">
+    Team Leader user ID
+  </ResponseField>
+  
+  <ResponseField name="feedback_text" type="string">
+    Sanitized feedback text
+  </ResponseField>
+  
+  <ResponseField name="feedback_type" type="string">
+    Sanitized feedback type
+  </ResponseField>
+  
+  <ResponseField name="created_at" type="string">
+    ISO 8601 timestamp of feedback submission
+  </ResponseField>
+</ResponseField>
+
+### Error Responses
+
+<ResponseField name="400" type="object">
+  Missing required fields
+  ```json
+  { "error": "All fields are required" }
+  ```
+</ResponseField>
+
+<ResponseField name="500" type="object">
+  Server error during feedback submission
+  ```json
+  { "error": "Failed to submit feedback" }
+  ```
+</ResponseField>
+
+### Side Effects
+
+- Creates a record in the `tl_feedback` table
+- Sends a real-time notification to the student via `notifyUser()` service
+- Notification preview shows first 50 characters of feedback text

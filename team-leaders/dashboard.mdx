@@ -1,0 +1,212 @@
+---
+title: 'Team Leader Dashboard'
+description: 'Monitor your clan performance, track student progress, and identify at-risk learners'
+icon: 'gauge-high'
+---
+
+## Overview
+
+The Team Leader Dashboard is your command center for monitoring all students (coders) in your clan. It provides real-time insights into performance, soft skills, and learning progress.
+
+<Note>
+  The dashboard automatically refreshes when new feedback is read or system updates occur.
+</Note>
+
+## Accessing the Dashboard
+
+Navigate to your dashboard at `/tl/dashboard` after logging in with your Team Leader credentials.
+
+**API Endpoint:** `GET /api/tl/dashboard`
+
+---
+
+## Dashboard Components
+
+### 1. Clan Overview Statistics
+
+At the top of your dashboard, you'll see key metrics for your entire clan:
+
+<CardGroup cols={2}>
+  <Card title="Total Coders" icon="users">
+    Number of students assigned to your clan
+  </Card>
+  <Card title="Completed Onboarding" icon="circle-check">
+    Students who have finished their first login and diagnostic
+  </Card>
+  <Card title="High-Risk Coders" icon="triangle-exclamation">
+    Students flagged as high or critical risk by the AI system
+  </Card>
+  <Card title="Clan Average Score" icon="chart-line">
+    Average Moodle performance score across all students
+  </Card>
+</CardGroup>
+
+### 2. Soft Skills Overview
+
+View aggregated soft skills data for your entire clan:
+
+- **Autonomy** - Self-directed learning capability
+- **Time Management** - Ability to organize and prioritize tasks
+- **Problem Solving** - Critical thinking and debugging skills
+- **Communication** - Clarity in expressing technical concepts
+- **Teamwork** - Collaboration and peer support
+
+Each skill is rated on a scale of 0-5 and displayed with visual progress bars.
+
+<Accordion title="How are soft skills calculated?">
+  Soft skills averages are calculated only from students who have completed the diagnostic assessment. This prevents skewing the data toward zero for students who haven't been assessed yet.
+
+  **Backend Logic:**
+  ```javascript
+  const codersWithSkills = coders.filter((c) => c.learning_style !== null);
+  softSkillsAverage[skill] = total / codersWithSkills.length;
+  ```
+</Accordion>
+
+### 3. Learning Styles Distribution
+
+A visual pie chart shows the distribution of learning styles in your clan:
+
+- **Visual** - Learn best through diagrams and visual aids
+- **Auditory** - Prefer lectures and verbal explanations
+- **Kinesthetic** - Hands-on coding and experimentation
+- **Read/Write** - Text-based learning through documentation
+- **Not Diagnosed** - Haven't completed the assessment yet
+
+---
+
+## Student List & Filters
+
+### Filter Options
+
+<Steps>
+  <Step title="View All Students">
+    Click **All** to see every coder in your clan
+  </Step>
+  <Step title="Filter High-Risk Students">
+    Click **Risk** to show only students with high or critical risk flags
+  </Step>
+  <Step title="View Pending Onboarding">
+    Click **Pending** to see students who haven't completed first login
+  </Step>
+</Steps>
+
+### Student Status Indicators
+
+Each student row displays:
+
+| Column | Description |
+|--------|-------------|
+| **Name** | Student's full name |
+| **Score** | Average Moodle performance score |
+| **Week** | Current week in the bootcamp curriculum |
+| **Learning Style** | Diagnosed learning preference |
+| **Status** | Risk level, pending, or active |
+
+**Status Types:**
+- 🔴 **Risk** - High or critical risk flag active
+- 🟡 **Pending** - First login not completed
+- 🟢 **Active** - Onboarded and progressing normally
+
+---
+
+## Student Detail Panel
+
+Click any student row to open the detailed profile panel on the right.
+
+### Detail Panel Sections
+
+<Steps>
+  <Step title="Basic Information">
+    View student name, email, clan, avatar, and current week
+  </Step>
+  <Step title="Performance Metrics">
+    See average score and learning style diagnosis
+  </Step>
+  <Step title="Risk Alert">
+    Visual warning if student is flagged as high/critical risk
+  </Step>
+  <Step title="Soft Skills Breakdown">
+    Individual ratings for all five soft skill dimensions
+  </Step>
+  <Step title="Action Buttons">
+    - **View Professional Profile** - Navigate to full student profile
+    - **Download PDF Report** - Generate individual student report
+    - **Submit Feedback** - Send feedback directly to the student
+  </Step>
+</Steps>
+
+### Viewing Professional Profile
+
+Click **"Ver Perfil Profesional"** to navigate to:
+```
+/frontend/src/views/coder/profile.html?id={coder_id}
+```
+
+This opens the student's comprehensive profile with employment history, portfolio projects, and skills.
+
+---
+
+## Risk Badge Notification
+
+When one or more students in your clan have active risk flags, a badge appears in the top navigation bar:
+
+<Note type="warning">
+  **⚠️ High-Risk Alert:** The risk badge shows the count of students requiring immediate intervention. Click to filter the student list to at-risk individuals.
+</Note>
+
+---
+
+## Data Source
+
+The dashboard aggregates data from multiple database tables:
+
+**Backend Query (tlControllers.js:248)**
+```javascript
+SELECT 
+  u.id, u.full_name, u.email, u.first_login, u.clan AS clan_id,
+  mp.average_score, mp.current_week,
+  ss.autonomy, ss.time_management, ss.problem_solving, 
+  ss.communication, ss.teamwork, ss.learning_style,
+  rf.risk_level
+FROM users u
+LEFT JOIN moodle_progress mp ON u.id = mp.coder_id
+LEFT JOIN soft_skills_assessment ss ON u.id = ss.coder_id
+LEFT JOIN risk_flags rf ON u.id = rf.coder_id AND rf.resolved = false
+WHERE u.role = 'coder' AND u.clan = $1
+```
+
+---
+
+## Best Practices
+
+<CardGroup cols={1}>
+  <Card title="Daily Check" icon="calendar-day">
+    Review your dashboard at the start of each day to identify new risk flags
+  </Card>
+  <Card title="Monitor Trends" icon="chart-line">
+    Track changes in clan average score and soft skills over time
+  </Card>
+  <Card title="Prioritize Risk" icon="fire">
+    Use the Risk filter to focus on students needing immediate intervention
+  </Card>
+  <Card title="Leverage Learning Styles" icon="brain">
+    Tailor your teaching approach based on the learning style distribution
+  </Card>
+</CardGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Analytics" icon="chart-simple" href="/team-leaders/analytics">
+    Dive deeper into performance trends and AI insights
+  </Card>
+  <Card title="Reports" icon="file-pdf" href="/team-leaders/reports">
+    Generate comprehensive AI-powered clan reports
+  </Card>
+  <Card title="Interventions" icon="user-doctor" href="/team-leaders/interventions">
+    Learn how to provide feedback and flag interventions
+  </Card>
+</CardGroup>

@@ -1,0 +1,529 @@
+---
+title: 'Soft Skills Assessment'
+description: 'Multi-dimensional learner profiling using VARK, ILS, and Kolb assessment frameworks'
+icon: 'brain'
+---
+
+## Overview
+
+Kairo's soft skills assessment system combines three validated educational frameworks to create comprehensive learner profiles that drive personalized learning path generation.
+
+<Note>
+  The assessment is **entirely backend-derived**—the frontend only collects raw answers. All scoring logic lives in the Node.js controller to ensure consistency and security.
+</Note>
+
+## Assessment Frameworks
+
+<CardGroup cols={3}>
+  <Card title="VARK" icon="eye">
+    Visual, Auditory, Reading/Writing, Kinesthetic learning modalities
+  </Card>
+  <Card title="ILS" icon="sliders">
+    Index of Learning Styles: 4 dimensions of learning preferences
+  </Card>
+  <Card title="Kolb" icon="repeat">
+    Experiential learning cycle: CE, RO, AC, AE
+  </Card>
+</CardGroup>
+
+## How It Works
+
+<Steps>
+  <Step title="Student Answers Questions">
+    The onboarding diagnostic presents questions that map to specific learning patterns. Each answer option is tagged with scoring identifiers.
+    
+    ```javascript
+    {
+      questionId: 1,
+      question: "When learning a new programming concept, I prefer to...",
+      options: [
+        { id: "a", text: "Watch video tutorials", score: "V" },
+        { id: "b", text: "Listen to explanations", score: "A" },
+        { id: "c", text: "Read documentation", score: "R" },
+        { id: "d", text: "Try coding immediately", score: "K" }
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Frontend Sends Raw Answers">
+    No client-side scoring. The frontend submits the complete answer array:
+    
+    **Endpoint:** `POST /api/diagnostics`
+    
+    ```javascript
+    {
+      "answers": [
+        { "questionId": 1, "optionId": "a", "score": "V" },
+        { "questionId": 2, "optionId": "b", "score": "ACT" },
+        { "questionId": 3, "optionId": "c", "score": "SEQ" }
+        // ... 44 total questions
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Backend Derives Learning Style">
+    The controller tallies VARK + ILS visual/verbal tags to determine the dominant learning modality:
+    
+    ```javascript
+    function deriveLearningStyle(tally) {
+      const vark = {
+        visual: (tally['V'] || 0) + (tally['VIS'] || 0),
+        auditory: (tally['A'] || 0) + (tally['VRB'] || 0),
+        reading: tally['R'] || 0,
+        kinesthetic: tally['K'] || 0
+      };
+      
+      const max = Math.max(...Object.values(vark));
+      const total = Object.values(vark).reduce((a, b) => a + b, 0);
+      
+      // Dominant style must be >= 35% of total
+      const dominant = Object.entries(vark).find(([, v]) => v === max);
+      if (!dominant || max / total < 0.35) return 'mixed';
+      
+      return dominant[0];
+    }
+    ```
+    
+    **Implementation:** `backend-node/src/controllers/diagnosticControllers.js:83-104`
+  </Step>
+
+  <Step title="Backend Derives Soft Skill Scores">
+    Five soft skills are scored 1-5 based on psychological mappings from ILS + Kolb patterns:
+    
+    ```javascript
+    function deriveSoftSkillScores(tally) {
+      const scale = (count, max) => 
+        Math.min(5, Math.max(1, Math.round((count / max) * 4) + 1));
+      
+      return {
+        autonomy: scale(
+          (tally['REF'] || 0) + (tally['AC'] || 0) + (tally['RO'] || 0), 
+          12
+        ),
+        time_management: scale(
+          (tally['SEQ'] || 0) + (tally['AE'] || 0) + (tally['SNS'] || 0), 
+          14
+        ),
+        problem_solving: scale(
+          (tally['GLO'] || 0) + (tally['AC'] || 0) + (tally['INT'] || 0), 
+          14
+        ),
+        communication: scale(
+          (tally['ACT'] || 0) + (tally['CE'] || 0) + (tally['VRB'] || 0), 
+          14
+        ),
+        teamwork: scale(
+          (tally['ACT'] || 0) + (tally['CE'] || 0) + (tally['SNS'] || 0), 
+          14
+        )
+      };
+    }
+    ```
+    
+    **Implementation:** `backend-node/src/controllers/diagnosticControllers.js:121-131`
+  </Step>
+
+  <Step title="Upsert to Database">
+    Assessment results are saved with automatic re-take support. If a coder already has an assessment, all fields are updated:
+    
+    ```sql
+    INSERT INTO soft_skills_assessment (
+      coder_id, autonomy, time_management, problem_solving,
+      communication, teamwork, learning_style, raw_answers
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    ON CONFLICT (coder_id)
+    DO UPDATE SET
+      autonomy        = EXCLUDED.autonomy,
+      time_management = EXCLUDED.time_management,
+      problem_solving = EXCLUDED.problem_solving,
+      communication   = EXCLUDED.communication,
+      teamwork        = EXCLUDED.teamwork,
+      learning_style  = EXCLUDED.learning_style,
+      raw_answers     = EXCLUDED.raw_answers,
+      assessed_at     = CURRENT_TIMESTAMP
+    RETURNING *
+    ```
+    
+    **Implementation:** `backend-node/src/models/softSkills.js:16-58`
+  </Step>
+
+  <Step title="Trigger AI Plan Generation">
+    After successful assessment save, the system fires a background request to generate the first interpretive learning plan:
+    
+    ```javascript
+    // Fire-and-forget - non-blocking
+    _triggerInterpretivePlan(req.session.userId, moduleId, currentWeek);
+    ```
+    
+    The frontend receives an immediate 201 response while the plan generates asynchronously.
+    
+    **Implementation:** `backend-node/src/controllers/diagnosticControllers.js:190`
+  </Step>
+</Steps>
+
+## Score Tag Inventory
+
+The assessment uses 15 unique scoring tags across all frameworks:
+
+### VARK Tags
+
+<Accordion title="V - Visual">
+  Preference for diagrams, charts, graphs, and visual representations of information.
+</Accordion>
+
+<Accordion title="A - Auditory">
+  Preference for listening, discussions, and verbal explanations.
+</Accordion>
+
+<Accordion title="R - Reading/Writing">
+  Preference for written materials, articles, documentation, and note-taking.
+</Accordion>
+
+<Accordion title="K - Kinesthetic">
+  Preference for hands-on experiences, practice, and learning by doing.
+</Accordion>
+
+### ILS Tags
+
+<Accordion title="ACT - Active">
+  Learns by doing and experimenting. Prefers group work and discussion.
+</Accordion>
+
+<Accordion title="REF - Reflective">
+  Learns by thinking things through independently. Prefers working alone.
+</Accordion>
+
+<Accordion title="SNS - Sensing">
+  Concrete thinker. Prefers facts, data, and practical problem-solving.
+</Accordion>
+
+<Accordion title="INT - Intuitive">
+  Abstract thinker. Prefers concepts, theories, and innovative approaches.
+</Accordion>
+
+<Accordion title="VIS - Visual (ILS)">
+  Reinforces VARK visual preference. Learns best from pictures and diagrams.
+</Accordion>
+
+<Accordion title="VRB - Verbal">
+  Reinforces VARK auditory preference. Learns best from written and spoken explanations.
+</Accordion>
+
+<Accordion title="SEQ - Sequential">
+  Linear thinker. Prefers step-by-step instructions and structured learning.
+</Accordion>
+
+<Accordion title="GLO - Global">
+  Big-picture thinker. Learns best by understanding the whole system first.
+</Accordion>
+
+### Kolb Tags
+
+<Accordion title="CE - Concrete Experience">
+  Learning from specific experiences and feeling. Preference for intuitive problem-solving.
+</Accordion>
+
+<Accordion title="RO - Reflective Observation">
+  Learning by watching and listening. Preference for careful observation before acting.
+</Accordion>
+
+<Accordion title="AC - Abstract Conceptualization">
+  Learning through logical analysis and thinking. Preference for systematic planning.
+</Accordion>
+
+<Accordion title="AE - Active Experimentation">
+  Learning by doing and influencing. Preference for practical applications.
+</Accordion>
+
+## Psychological Mappings to Soft Skills
+
+### Autonomy
+
+**Components:** REF + AC + RO
+
+<Note>
+  High autonomy students are reflective, abstract thinkers who learn independently. They prefer self-directed study and analytical problem-solving.
+</Note>
+
+### Time Management
+
+**Components:** SEQ + AE + SNS
+
+<Note>
+  Strong time managers are sequential, methodical thinkers who prefer structured environments and concrete tasks with clear deadlines.
+</Note>
+
+### Problem Solving
+
+**Components:** GLO + AC + INT
+
+<Note>
+  Effective problem solvers are big-picture, abstract thinkers who excel at understanding complex systems and innovative approaches.
+</Note>
+
+### Communication
+
+**Components:** ACT + CE + VRB
+
+<Note>
+  Strong communicators are active, expressive learners who thrive in collaborative environments and verbal exchanges.
+</Note>
+
+### Teamwork
+
+**Components:** ACT + CE + SNS
+
+<Note>
+  Team-oriented students are active, concrete thinkers who prefer hands-on collaboration and practical group problem-solving.
+</Note>
+
+## API Reference
+
+### Save Diagnostic
+
+<CodeGroup>
+```javascript Request
+POST /api/diagnostics
+Content-Type: application/json
+
+{
+  "answers": [
+    { "questionId": 1, "optionId": "a", "score": "V" },
+    { "questionId": 2, "optionId": "b", "score": "ACT" },
+    { "questionId": 3, "optionId": "c", "score": "SEQ" },
+    // ... all 44 questions
+  ]
+}
+```
+
+```javascript Response (201 Created)
+{
+  "message": "Diagnostic saved successfully",
+  "planRequested": true,
+  "diagnostic": {
+    "coderId": 123,
+    "autonomy": 4,
+    "timeManagement": 3,
+    "problemSolving": 5,
+    "communication": 3,
+    "teamwork": 4,
+    "learningStyle": "visual",
+    "assessedAt": "2026-03-14T20:15:30.000Z"
+  }
+}
+```
+</CodeGroup>
+
+<Warning>
+  The `planRequested: true` flag indicates that an interpretive learning plan is being generated in the background. The frontend should display a "Your plan is being created..." message.
+</Warning>
+
+### Get My Diagnostic
+
+```javascript
+GET /api/diagnostics/me
+Authorization: Session cookie
+
+// Response
+{
+  "diagnostic": {
+    "coderId": 123,
+    "autonomy": 4,
+    "timeManagement": 3,
+    "problemSolving": 5,
+    "communication": 3,
+    "teamwork": 4,
+    "learningStyle": "visual",
+    "assessedAt": "2026-03-14T20:15:30.000Z"
+  }
+}
+```
+
+### Get All Diagnostics (TL Only)
+
+```javascript
+GET /api/diagnostics/all
+Authorization: Session cookie (role: tl)
+
+// Response
+{
+  "diagnostics": [
+    {
+      "coderId": 123,
+      "coderEmail": "student@example.com",
+      "coderName": "John Doe",
+      "autonomy": 4,
+      "timeManagement": 3,
+      "problemSolving": 5,
+      "communication": 3,
+      "teamwork": 4,
+      "learningStyle": "visual",
+      "assessedAt": "2026-03-14T20:15:30.000Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Implementation:** `backend-node/src/controllers/diagnosticControllers.js:234-257`
+
+## Data Model
+
+```sql
+CREATE TABLE soft_skills_assessment (
+  coder_id         INT PRIMARY KEY REFERENCES users(id),
+  autonomy         INT NOT NULL CHECK (autonomy BETWEEN 1 AND 5),
+  time_management  INT NOT NULL CHECK (time_management BETWEEN 1 AND 5),
+  problem_solving  INT NOT NULL CHECK (problem_solving BETWEEN 1 AND 5),
+  communication    INT NOT NULL CHECK (communication BETWEEN 1 AND 5),
+  teamwork         INT NOT NULL CHECK (teamwork BETWEEN 1 AND 5),
+  learning_style   VARCHAR(20) NOT NULL, -- 'visual' | 'auditory' | 'reading' | 'kinesthetic' | 'mixed'
+  raw_answers      JSONB,                 -- Full array of answers for re-analysis
+  assessed_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_soft_skills_learning_style ON soft_skills_assessment(learning_style);
+CREATE INDEX idx_soft_skills_assessed ON soft_skills_assessment(assessed_at);
+```
+
+**Model:** `backend-node/src/models/softSkills.js`
+
+## Re-Take Support
+
+The system supports diagnostic re-takes using PostgreSQL's `ON CONFLICT` upsert pattern:
+
+```javascript
+export async function create({
+  coderId,
+  autonomy,
+  timeManagement,
+  problemSolving,
+  communication,
+  teamwork,
+  learningStyle,
+  rawAnswers = null
+}) {
+  const queryText = `
+    INSERT INTO soft_skills_assessment (
+      coder_id, autonomy, time_management, problem_solving,
+      communication, teamwork, learning_style, raw_answers
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    ON CONFLICT (coder_id)
+    DO UPDATE SET
+      autonomy        = EXCLUDED.autonomy,
+      time_management = EXCLUDED.time_management,
+      problem_solving = EXCLUDED.problem_solving,
+      communication   = EXCLUDED.communication,
+      teamwork        = EXCLUDED.teamwork,
+      learning_style  = EXCLUDED.learning_style,
+      raw_answers     = EXCLUDED.raw_answers,
+      assessed_at     = CURRENT_TIMESTAMP
+    RETURNING *
+  `;
+  // ...
+}
+```
+
+**Implementation:** `backend-node/src/models/softSkills.js:16-58`
+
+## Validation & Error Handling
+
+<Accordion title="Empty Answers Array">
+  ```javascript
+  if (!Array.isArray(answers) || answers.length === 0) {
+    return res.status(400).json({
+      error: 'answers array is required',
+      expected: '{ answers: [{ questionId, optionId, score }] }'
+    });
+  }
+  ```
+</Accordion>
+
+<Accordion title="Diagnostic Not Found">
+  ```javascript
+  const diagnostic = await findByCoderId(req.session.userId);
+  
+  if (!diagnostic) {
+    return res.status(404).json({
+      error: 'Diagnostic not found',
+      message: 'You have not completed the assessment yet'
+    });
+  }
+  ```
+</Accordion>
+
+<Accordion title="Database Constraint Violations">
+  Soft skill scores are constrained to 1-5 range at the database level:
+  
+  ```sql
+  CHECK (autonomy BETWEEN 1 AND 5)
+  ```
+  
+  Invalid scores will trigger a PostgreSQL error caught by the controller.
+</Accordion>
+
+## Integration with AI Plan Generation
+
+Soft skills data is the primary input for personalized learning paths:
+
+```python
+# backend-python/app/routers/roadmap.py
+
+# 1. Fetch soft skills
+soft_skills = db_manager.get_soft_skills(req.coder_id)
+if not soft_skills:
+    raise HTTPException(
+        status_code=400,
+        detail=f"No diagnostic found for coder {req.coder_id}. Complete onboarding first."
+    )
+
+# 2. Build AI context
+context = {
+    "plan_type":   req.plan_type,
+    "coder_id":    req.coder_id,
+    "soft_skills": soft_skills,  # ← Drives AI personalization
+    "module":      module,
+    "weeks":       weeks
+}
+
+# 3. Generate plan
+plan = await generate_plan_with_ai(context)
+```
+
+**Implementation:** `backend-python/app/routers/roadmap.py:52-96`
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Mandatory Onboarding" icon="lock">
+    Enforce diagnostic completion before allowing access to learning materials. The system blocks plan generation without soft skills data.
+  </Card>
+  
+  <Card title="Preserve Raw Answers" icon="floppy-disk">
+    The `raw_answers` JSONB column enables future re-analysis with improved scoring algorithms without requiring re-takes.
+  </Card>
+  
+  <Card title="Async Plan Generation" icon="clock">
+    Never block the diagnostic save response waiting for AI plan generation. Use fire-and-forget pattern.
+  </Card>
+  
+  <Card title="Track Assessment Date" icon="calendar">
+    Use `assessed_at` timestamp to encourage periodic re-assessment as students progress.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI Learning Paths" href="/features/ai-learning-paths" icon="brain-circuit">
+    See how diagnostic data drives personalized learning
+  </Card>
+  
+  <Card title="Analytics Dashboard" href="/features/analytics-dashboard" icon="chart-line">
+    View soft skills trends across cohorts
+  </Card>
+</CardGroup>

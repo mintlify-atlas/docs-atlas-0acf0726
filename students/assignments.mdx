@@ -1,0 +1,321 @@
+---
+title: "Assignments & Activities"
+description: "Access, download, and manage assignments from your Team Leader and RAG resources"
+icon: "clipboard-list"
+---
+
+## Overview
+
+The **Activities** page is your central hub for all assignments, resources, and learning materials. Your Team Leader (TL) publishes assignments for your clan, and Kairo's RAG (Retrieval-Augmented Generation) system provides searchable documentation and guides.
+
+## Types of Activities
+
+<CardGroup cols={2}>
+  <Card title="Assignments" icon="file-pdf" color="#dc2626">
+    **PDF Documents** or **GitHub Repositories** assigned by your Team Leader  
+    Includes deadlines, scope (clan-wide or individual), and module context
+  </Card>
+
+  <Card title="RAG Resources" icon="book-open" color="#7c3aed">
+    **Searchable Knowledge Base** of documentation, tutorials, and guides  
+    Uploaded by TLs and available to all students for reference
+  </Card>
+</CardGroup>
+
+## Accessing Activities
+
+Navigate to the **Activities** page from your main navigation menu.
+
+<Note>
+The Activities page auto-refreshes when you receive new assignment notifications via Server-Sent Events (SSE).
+</Note>
+
+## Activity Cards
+
+Each activity is displayed as a card with the following information:
+
+### Assignment Cards (PDF/Repo)
+
+```plaintext
+┌─────────────────────────────────────────┐
+│ 📄 Build a REST API with Express       │ ← Title
+│                                         │
+│ 🏷️ Backend Fundamentals                │ ← Module
+│ 👔 Juan Pérez (TL)                     │ ← Team Leader
+│ 🌎 Todos los coders                    │ ← Scope
+│                                         │
+│ 📅 Vence en 3 días                     │ ← Deadline
+│                                         │
+│ [Descargar PDF] or [Ver repositorio]   │ ← Action Button
+└─────────────────────────────────────────┘
+```
+
+**Card Details:**
+- **Type Icon:** PDF (📄) or GitHub logo for repositories
+- **Title:** Assignment name
+- **Module Chip:** Shows which module this assignment belongs to
+- **TL Name:** Who assigned the activity
+- **Scope:** "Todos los coders" (all students) or specific to your clan
+- **Deadline Badge:** Color-coded based on urgency:
+  - 🟢 Green: More than 3 days remaining
+  - 🟡 Yellow: 1-3 days remaining
+  - 🔴 Red: Overdue or due today
+
+### RAG Resource Cards
+
+```plaintext
+┌─────────────────────────────────────────┐
+│ 📖 JavaScript Promises and Async/Await │ ← Title
+│                                         │
+│ 🏷️ Módulo 3                            │ ← Module (if specified)
+│ 👔 María González (TL)                 │ ← Uploaded by
+│ 🧠 RAG                                  │ ← RAG indicator
+│                                         │
+│ 📅 Publicado el 12 Dic 2025            │ ← Upload date
+│                                         │
+│ Preview: "A comprehensive guide to..." │ ← Preview text
+│                                         │
+│ [Descargar Recurso]                    │ ← Download button
+└─────────────────────────────────────────┘
+```
+
+## Filtering Activities
+
+Use the filter chips at the top of the page to view specific types of activities:
+
+<Tabs>
+  <Tab title="All">
+    Shows all assignments and RAG resources, sorted by most recent first.
+  </Tab>
+  <Tab title="Pending">
+    Filters to show only:
+    - Assignments with upcoming deadlines
+    - All RAG resources (resources don't expire)
+  </Tab>
+  <Tab title="Overdue">
+    Shows only assignments past their deadline. RAG resources are excluded from this filter.
+  </Tab>
+</Tabs>
+
+**Filter Implementation:**
+
+```javascript
+// activeFilter is set by clicking filter chips
+if (activeFilter === 'pending') {
+  return items.filter((a) => {
+    if (a._kind === 'resource') return true;
+    if (!a.deadline) return true;
+    return new Date(a.deadline) >= new Date();
+  });
+}
+```
+
+## Downloading Assignments
+
+### PDF Assignments
+
+<Steps>
+  <Step title="Click 'Descargar PDF'">
+    Click the download button on the assignment card.
+  </Step>
+
+  <Step title="Generate Secure Link">
+    The system fetches a temporary download URL from Supabase Storage:
+    ```javascript
+    POST /api/coder/assignment/:id/download
+    // Returns: { url: "https://...", fileName: "actividad.pdf" }
+    ```
+  </Step>
+
+  <Step title="Download Starts">
+    Your browser automatically downloads the PDF file.
+  </Step>
+</Steps>
+
+### GitHub Repository Assignments
+
+<Steps>
+  <Step title="Click 'Ver repositorio'">
+    Click the repository button on the assignment card.
+  </Step>
+
+  <Step title="Opens in New Tab">
+    The GitHub repository opens in a new browser tab.
+  </Step>
+
+  <Step title="Clone or Fork">
+    Clone the repo to your local machine or fork it to your GitHub account:
+    ```bash
+    git clone https://github.com/your-tl/assignment-repo.git
+    ```
+  </Step>
+</Steps>
+
+### RAG Resources
+
+RAG resources are downloaded similarly to PDFs:
+
+```javascript
+POST /api/coder/resource/:id/download
+// Returns: { url: "https://...", fileName: "recurso_rag.pdf" }
+```
+
+<Tip>
+All downloads use temporary signed URLs that expire after a short time for security.
+</Tip>
+
+## Assignment Metadata
+
+### Deadlines
+
+Deadlines are displayed in human-readable format:
+- **"Vence hoy"** - Due today
+- **"Vence en 2 días"** - Due in 2 days
+- **"Vence el 15 Dic 2025"** - Due on specific date (more than 3 days away)
+- **"Venció hace 3 días"** - Overdue by 3 days
+- **"Sin fecha límite"** - No deadline set
+
+### Scope
+
+Assignments can be scoped to:
+- **All Coders:** Available to everyone across all clans
+- **Your Clan:** Specific to your group (e.g., "Clan Alpha")
+
+<Note>
+RAG resources are always available to all students and don't have scope restrictions.
+</Note>
+
+## Real-Time Notifications
+
+When your TL publishes a new assignment:
+
+1. **SSE Event Received:** Your browser receives a real-time notification
+2. **Activity Grid Refreshes:** New assignments appear automatically
+3. **Visual Toast:** A success message confirms the new activity:
+   ```
+   ✓ Nueva actividad publicada
+   ```
+
+**SSE Listener:**
+
+```javascript
+window.addEventListener('kairo-notification', (e) => {
+  if (e.detail.type === 'assignment') {
+    console.log('[Sync] New assignment detected, refreshing grid...');
+    loadActivities();
+  }
+});
+```
+
+## Activity Statistics
+
+At the top of the Activities page, you'll see a summary:
+
+```plaintext
+5 actividades · 12 recursos RAG
+```
+
+This shows:
+- Total number of assignments from your TL
+- Total number of RAG resources available
+
+## Empty States
+
+If you have no activities:
+
+### No Activities Published
+
+```plaintext
+📭 Sin actividades publicadas aún
+
+Tu Team Leader aún no ha publicado actividades.
+Revisa más tarde o contacta a tu TL si tienes dudas.
+```
+
+### No Results for Filter
+
+```plaintext
+🔍 Sin actividades con este filtro
+
+Prueba cambiar el filtro o revisa la pestaña "Todas".
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Check Daily" icon="calendar-check">
+    Visit the Activities page daily to catch new assignments and stay on top of deadlines.
+  </Card>
+
+  <Card title="Download Early" icon="download">
+    Download assignments as soon as they're posted to avoid last-minute issues.
+  </Card>
+
+  <Card title="Use RAG Resources" icon="brain">
+    Search RAG resources when stuck - they're specifically curated to help you learn.
+  </Card>
+
+  <Card title="Watch Deadlines" icon="clock">
+    Pay attention to color-coded deadline badges. Red means urgent!
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+If downloads fail:
+
+**Common Errors:**
+- **"Error al obtener el enlace"** - Temporary download link couldn't be generated. Try again.
+- **"No se pudo obtener recurso"** - Resource not found or no longer available.
+- **Network timeout** - Check your internet connection and refresh the page.
+
+**What to do:**
+1. Refresh the page and try again
+2. Check your internet connection
+3. Contact your TL if the issue persists
+
+## Mobile Experience
+
+The Activities page is fully responsive:
+- Cards stack vertically on mobile devices
+- Filter chips scroll horizontally
+- Download buttons are thumb-friendly
+- Deadlines remain clearly visible
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `1` | Filter: All |
+| `2` | Filter: Pending |
+| `3` | Filter: Overdue |
+| `R` | Refresh activities |
+
+## FAQs
+
+<AccordionGroup>
+  <Accordion title="Can I re-download assignments?">
+    Yes! You can download assignments as many times as needed. Each click generates a fresh temporary URL.
+  </Accordion>
+
+  <Accordion title="What if I miss a deadline?">
+    Overdue assignments remain accessible. Talk to your TL about late submissions - they can provide guidance and may offer extensions.
+  </Accordion>
+
+  <Accordion title="Are RAG resources the same as assignments?">
+    No. RAG resources are reference materials and tutorials. Assignments are tasks you need to complete. Both are valuable for learning!
+  </Accordion>
+
+  <Accordion title="Can I search for specific resources?">
+    Currently, you can filter by category (All/Pending/Overdue). A full search feature for RAG resources is coming soon.
+  </Accordion>
+
+  <Accordion title="Why don't I see assignments from other clans?">
+    Assignments scoped to specific clans are only visible to members of that clan. Assignments marked 'All Coders' are visible to everyone.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+- [Learning Paths](/students/learning-paths) - Work on your personalized AI-generated plans
+- [Your Profile](/students/profile) - Track your progress and update your information

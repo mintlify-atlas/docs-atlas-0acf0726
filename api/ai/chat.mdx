@@ -1,0 +1,339 @@
+---
+title: 'AI Tutor Chat'
+api: 'POST /chat/ask'
+description: 'Interactive AI tutor chat using Groq LLM for student coding questions'
+---
+
+## Overview
+
+Provides an interactive AI tutor that answers student programming questions in a concise, motivating, and practical way.
+
+Powered by Groq's `llama-3.3-70b-versatile` model, optimized for quick educational responses.
+
+## Authentication
+
+Requires authentication. Can be accessed by any authenticated user.
+
+```http
+Authorization: Bearer <token>
+```
+
+## Request Body
+
+<ParamField body="message" type="string" required>
+  The student's question or message to the AI tutor
+</ParamField>
+
+<ParamField body="coder_id" type="integer">
+  Optional student ID for personalized context (future use)
+</ParamField>
+
+## Response
+
+<ResponseField name="reply" type="string">
+  The AI tutor's response (max 3 paragraphs, ~600 tokens)
+</ResponseField>
+
+## AI Model Configuration
+
+**Provider**: Groq  
+**Model**: `llama-3.3-70b-versatile`  
+**Temperature**: 0.7  
+**Max Tokens**: 600  
+**Response Style**: Concise, motivating, practical
+
+## System Prompt
+
+```
+You are Kairo, an expert coding tutor at Riwi bootcamp.
+You help students with programming questions in a concise,
+motivating, and practical way.
+Always give a short answer first, then explain if needed.
+Use simple language. Max 3 paragraphs.
+```
+
+## Examples
+
+<CodeGroup>
+
+```bash Request
+curl -X POST https://api.kairo.com/chat/ask \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What is the difference between let and const in JavaScript?",
+    "coder_id": 123
+  }'
+```
+
+```javascript Node.js
+const response = await fetch('https://api.kairo.com/chat/ask', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    message: 'What is the difference between let and const in JavaScript?',
+    coder_id: 123
+  })
+});
+
+const data = await response.json();
+console.log(data.reply);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://api.kairo.com/chat/ask',
+    headers={'Authorization': f'Bearer {token}'},
+    json={
+        'message': 'What is the difference between let and const in JavaScript?',
+        'coder_id': 123
+    }
+)
+
+print(response.json()['reply'])
+```
+
+```json Response
+{
+  "reply": "¡Excelente pregunta! La diferencia principal es que `const` crea variables que NO puedes reasignar, mientras que `let` sí permite cambiar el valor después.\n\nPor ejemplo, con `const nombre = 'Ana'`, no puedes luego hacer `nombre = 'Carlos'` — te dará error. Pero con `let edad = 20`, sí puedes hacer `edad = 21` más adelante.\n\nUsa `const` por defecto para proteger tus datos. Solo usa `let` cuando sepas que el valor va a cambiar, como contadores en bucles. Esto hace tu código más seguro y fácil de entender. ¡Sigue practicando!"
+}
+```
+
+</CodeGroup>
+
+## Response Structure
+
+Kairo follows a **3-part answer structure**:
+
+1. **Short Direct Answer** (1-2 sentences)  
+   Immediately addresses the core question
+
+2. **Explanation with Example** (1 paragraph)  
+   Provides context with practical code snippet
+
+3. **Best Practice + Motivation** (1-2 sentences)  
+   Actionable tip and encouraging closing
+
+## Example Interactions
+
+### Basic Concept Question
+
+**Student**: "What is a function?"
+
+**Kairo**: 
+```
+¡Gran pregunta! Una función es un bloque de código reutilizable 
+que hace una tarea específica.
+
+Piensa en una función como una máquina: le das algo (parámetros), 
+hace su trabajo, y te devuelve un resultado. Por ejemplo:
+
+function saludar(nombre) {
+  return "Hola " + nombre;
+}
+
+console.log(saludar("Ana")); // "Hola Ana"
+
+Las funciones te ahorran escribir el mismo código muchas veces. 
+¡Practica creando funciones pequeñas primero!
+```
+
+### Debugging Help
+
+**Student**: "My loop is not working, it prints nothing"
+
+**Kairo**:
+```
+Probablemente tu condición inicial ya es falsa, o no estás 
+inicializando bien la variable.
+
+Revisa estos 3 puntos:
+1. ¿Declaraste la variable antes del bucle?
+2. ¿La condición permite al menos una iteración?
+3. ¿Estás incrementando/decrementando correctamente?
+
+Ejemplo común de error:
+for (let i = 10; i < 5; i++) { ... } // ¡Nunca ejecuta!
+
+Prueba con console.log(i) antes del bucle para verificar el valor inicial. 
+¡El debugging es una habilidad clave, sigue practicando!
+```
+
+### Conceptual Understanding
+
+**Student**: "When should I use async/await?"
+
+**Kairo**:
+```
+Usa async/await cuando necesites esperar operaciones que toman tiempo, 
+como llamadas a APIs, lectura de archivos, o consultas a bases de datos.
+
+Es mucho más legible que usar .then(). Ejemplo:
+
+// Con async/await (más claro)
+const data = await fetch('/api/users');
+const json = await data.json();
+
+// Vs. .then() (más complejo)
+fetch('/api/users').then(r => r.json()).then(json => {...});
+
+Recuerda que solo puedes usar `await` dentro de funciones marcadas 
+como `async`. ¡Practica con fetch primero!
+```
+
+## Response Characteristics
+
+✅ **Always includes**:
+- Direct answer first
+- Practical code example
+- Motivational closing
+- Simple language (avoid jargon)
+
+❌ **Never includes**:
+- Overly technical explanations
+- Long theoretical discussions
+- Complete solutions to homework
+- More than 3 paragraphs
+
+## Error Handling
+
+<ResponseField name="error" type="object">
+  Error details when chat fails
+  
+  <ResponseField name="status_code" type="integer">
+    HTTP status code
+  </ResponseField>
+  
+  <ResponseField name="detail" type="string">
+    Error message
+  </ResponseField>
+</ResponseField>
+
+**Common Errors**:
+- `400`: Message cannot be empty
+- `500`: AI tutor temporarily unavailable
+
+```json Error Response
+{
+  "status_code": 400,
+  "detail": "Message cannot be empty"
+}
+```
+
+## Rate Limiting
+
+No explicit rate limiting currently implemented, but recommended for production:
+
+- **Per user**: 30 requests/minute
+- **Per IP**: 100 requests/minute
+
+## Use Cases
+
+### Frontend Chat Widget
+
+```javascript
+// Real-time chat integration
+const sendMessage = async (userMessage) => {
+  setLoading(true);
+  
+  const response = await fetch('/chat/ask', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message: userMessage,
+      coder_id: currentUser.id
+    })
+  });
+  
+  const { reply } = await response.json();
+  
+  setChatHistory([...chatHistory, 
+    { role: 'user', content: userMessage },
+    { role: 'assistant', content: reply }
+  ]);
+  
+  setLoading(false);
+};
+```
+
+### Embedded Help System
+
+```javascript
+// Contextual help in code editor
+const getHelp = async (selectedCode, errorMessage) => {
+  const message = `I'm getting this error: ${errorMessage}\n\nMy code:\n${selectedCode}`;
+  
+  const response = await fetch('/chat/ask', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ message })
+  });
+  
+  const { reply } = await response.json();
+  showHelpPanel(reply);
+};
+```
+
+## Future Enhancements
+
+- **Personalization**: Use `coder_id` to access soft skills and adapt teaching style
+- **Context Memory**: Maintain conversation history for multi-turn interactions
+- **Code Execution**: Validate and test code snippets in real-time
+- **Topic Tracking**: Log common questions to improve curriculum
+
+## Performance
+
+Typical response time: **400-800ms**
+- Model inference: **~300ms**
+- Network latency: **~100-200ms**
+- API overhead: **~100ms**
+
+## Best Practices
+
+### For Students
+- Ask specific questions rather than "How do I code?"
+- Include error messages when debugging
+- Share relevant code snippets
+- Try to solve first, then ask for guidance
+
+### For Integration
+- Show loading state while waiting for response
+- Display responses with proper markdown rendering
+- Implement retry logic for network failures
+- Cache common questions/answers locally
+
+## Accessibility
+
+The chat endpoint can be accessed:
+- **Directly**: From frontend chat widget
+- **Via Node.js**: Through `/api/ia/chat` proxy route (if configured)
+- **Mobile**: Native apps via REST API
+
+## Monitoring
+
+All chat interactions are logged:
+
+```python
+logger.info(f"[Chat] coder={req.coder_id} | message_length={len(req.message)}")
+logger.error(f"Chat error: {e}")  # On failures
+```
+
+Consider adding to `ai_generation_log` for analytics:
+
+```json
+{
+  "agent_type": "chat_tutor",
+  "input_payload": {"message": "..."},
+  "output_payload": {"reply": "..."},
+  "model_name": "llama-3.3-70b-versatile",
+  "success": true
+}
+```

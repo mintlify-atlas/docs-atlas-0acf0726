@@ -1,0 +1,267 @@
+---
+title: Installation
+description: Complete installation guide for the Kairo Learning Platform
+---
+
+The Kairo Learning Platform is a hybrid AI-powered learning system built with Node.js, Python (FastAPI), and PostgreSQL. This guide will walk you through installing and setting up all components.
+
+## System Requirements
+
+Before you begin, ensure your system meets these requirements:
+
+- **Node.js**: v18.0.0 or higher
+- **Python**: v3.9 or higher
+- **PostgreSQL**: v14 or higher (recommended: Supabase)
+- **Git**: Latest version
+- **Operating System**: Linux, macOS, or Windows with WSL2
+
+## Architecture Overview
+
+Kairo uses a distributed microservices architecture:
+
+- **Node.js Backend** (Port 3000): API Gateway, authentication, and business logic
+- **Python Backend** (Port 8000): AI microservice for LLM inference and analytics
+- **Frontend** (Port 5500): Multi-page application with Vanilla JS and Bootstrap 5
+- **PostgreSQL Database**: User data, learning plans, and progress tracking
+
+<Note>
+  All three services must run simultaneously for the platform to function properly.
+</Note>
+
+---
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the Kairo Learning Platform repository to your local machine:
+
+    ```bash
+    git clone https://github.com/Riwi-Project-C6/Learning-Platform.git
+    cd Learning-Platform
+    ```
+  </Step>
+
+  <Step title="Install Node.js Dependencies">
+    Navigate to the Node.js backend directory and install dependencies:
+
+    ```bash
+    cd backend-node
+    npm install
+    ```
+
+    **Key Dependencies:**
+    - Express v5.2.1 - Web framework
+    - PostgreSQL (pg) v8.18.0 - Database client
+    - Supabase JS v2.98.0 - Database SDK
+    - Passport - OAuth authentication (GitHub, Google)
+    - Bcrypt - Password hashing
+    - Nodemailer - Email notifications
+  </Step>
+
+  <Step title="Set Up Python Environment">
+    Create a Python virtual environment and install dependencies:
+
+    <CodeGroup>
+      ```bash Linux/macOS
+      cd ../backend-python
+      python3 -m venv env
+      source env/bin/activate
+      pip install -r requirements.txt
+      ```
+
+      ```powershell Windows
+      cd ../backend-python
+      python -m venv env
+      env\Scripts\Activate.ps1
+      pip install -r requirements.txt
+      ```
+    </CodeGroup>
+
+    **Key Dependencies:**
+    - FastAPI v0.115.0 - Python web framework
+    - Uvicorn v0.30.6 - ASGI server
+    - Groq v1.1.1 - AI model inference
+    - Supabase v2.7.4 - Database client
+    - Sentence-Transformers v3.0.1 - Text embeddings
+    - PyTorch v2.4.1 - ML framework
+    - PDFPlumber v0.11.4 - PDF processing
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Create `.env` files for both backends. See [Environment Variables](/setup/environment-variables) for detailed configuration.
+
+    <Warning>
+      Never commit `.env` files to version control. Add them to `.gitignore`.
+    </Warning>
+  </Step>
+
+  <Step title="Set Up the Database">
+    Initialize your PostgreSQL database with the Kairo schema. See [Database Setup](/setup/database-setup) for complete instructions.
+  </Step>
+
+  <Step title="Configure AI Models">
+    Set up the Groq API and configure the AI model. See [AI Configuration](/setup/ai-configuration) for details.
+  </Step>
+</Steps>
+
+---
+
+## Starting the Platform
+
+You need to run three services simultaneously. Open three separate terminal windows:
+
+### Terminal 1: Node.js Backend (API Gateway)
+
+```bash
+cd backend-node
+npm run dev
+```
+
+**Success Message:**
+```
+🚀 KAIRO API GATEWAY STARTED SUCCESSFULLY
+```
+
+The Node.js server will be available at `http://localhost:3000`
+
+### Terminal 2: Python Backend (AI Microservice)
+
+<CodeGroup>
+  ```bash Linux/macOS
+  cd backend-python
+  source env/bin/activate
+  uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+  ```
+
+  ```powershell Windows
+  cd backend-python
+  env\Scripts\Activate.ps1
+  uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+  ```
+</CodeGroup>
+
+**Success Message:**
+```
+INFO: Supabase client initialized
+INFO: Uvicorn running on http://0.0.0.0:8000
+```
+
+### Terminal 3: Frontend
+
+**Option 1: VS Code Live Server (Recommended)**
+
+1. Open the `frontend` folder in VS Code
+2. Install the "Live Server" extension
+3. Right-click on `index.html` and select "Open with Live Server"
+4. The frontend will open at `http://127.0.0.1:5500`
+
+**Option 2: Using npx serve**
+
+```bash
+cd frontend
+npx serve -p 5500
+```
+
+<Tip>
+  The frontend must run on port 5500 for OAuth callbacks to work correctly.
+</Tip>
+
+---
+
+## Verification
+
+Verify that all services are running correctly:
+
+<Steps>
+  <Step title="Check Node.js Backend">
+    Visit `http://localhost:3000` in your browser. You should see a welcome message or API status.
+  </Step>
+
+  <Step title="Check Python Backend">
+    Visit `http://localhost:8000/health` to see the AI service health status:
+
+    ```json
+    {
+      "status": "online",
+      "service": "Kairo AI Engine",
+      "model": "llama-3.3-70b-versatile",
+      "embeddings": "all-MiniLM-L6-v2",
+      "environment": "development"
+    }
+    ```
+  </Step>
+
+  <Step title="Check API Documentation">
+    Visit `http://localhost:8000/docs` to view the interactive FastAPI documentation.
+  </Step>
+
+  <Step title="Check Frontend">
+    Visit `http://127.0.0.1:5500` to access the Kairo Learning Platform interface.
+  </Step>
+</Steps>
+
+---
+
+## Troubleshooting
+
+### Port Already in Use
+
+If you see "Port already in use" errors:
+
+```bash
+# Linux/macOS
+lsof -ti:3000 | xargs kill -9
+lsof -ti:8000 | xargs kill -9
+lsof -ti:5500 | xargs kill -9
+
+# Windows
+netstat -ano | findstr :3000
+taskkill /PID <PID> /F
+```
+
+### Database Connection Failed
+
+- Verify your PostgreSQL credentials in `.env`
+- Ensure your Supabase project is active
+- Check that your IP is allowlisted in Supabase settings
+
+### Python Virtual Environment Issues
+
+If you have trouble activating the virtual environment:
+
+```bash
+# Recreate the environment
+rm -rf env
+python3 -m venv env
+source env/bin/activate
+pip install -r requirements.txt
+```
+
+### AI Model Not Loading
+
+If the embeddings model fails to load:
+
+```bash
+# Manually download the model
+python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="gear" href="/setup/environment-variables">
+    Configure all required environment variables
+  </Card>
+  <Card title="Database Setup" icon="database" href="/setup/database-setup">
+    Initialize the PostgreSQL schema
+  </Card>
+  <Card title="AI Configuration" icon="brain" href="/setup/ai-configuration">
+    Configure Groq and the Qwen2.5 model
+  </Card>
+  <Card title="Getting Started" icon="rocket" href="/quickstart">
+    Follow the quickstart guide
+  </Card>
+</CardGroup>

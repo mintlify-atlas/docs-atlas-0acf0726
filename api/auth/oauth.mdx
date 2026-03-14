@@ -1,0 +1,423 @@
+---
+title: 'OAuth Authentication'
+description: 'Authenticate users with Google and GitHub'
+---
+
+## Overview
+
+The Kairo Learning Platform supports OAuth 2.0 authentication with two providers:
+
+- **Google** - Using Google OAuth 2.0
+- **GitHub** - Using GitHub OAuth Apps
+
+OAuth users skip email verification (OTP) since they're verified by the provider.
+
+## OAuth Flow
+
+1. User clicks "Sign in with Google" or "Sign in with GitHub"
+2. Client redirects to OAuth initiation endpoint
+3. User is redirected to provider's authentication page
+4. User grants permissions to the application
+5. Provider redirects back to callback URL with authorization code
+6. Server exchanges code for user information
+7. User account is created or updated in database
+8. User is marked as `otp_verified: true` (no email verification needed)
+9. Session is created
+10. User is redirected to onboarding or dashboard based on `firstLogin` status
+
+<Note>
+  OAuth authentication automatically bypasses OTP verification. The provider's authentication is considered sufficient.
+</Note>
+
+---
+
+## Google OAuth
+
+### Initiate Google Login
+
+**Endpoint:** `GET /api/auth/google`
+
+**Authentication:** None (public)
+
+Redirects the user to Google's OAuth consent screen.
+
+<CodeGroup>
+```html HTML Button
+<a href="/api/auth/google" class="btn btn-google">
+  <img src="/assets/google-icon.svg" alt="Google" />
+  Sign in with Google
+</a>
+```
+
+```javascript JavaScript Redirect
+window.location.href = '/api/auth/google';
+```
+</CodeGroup>
+
+### OAuth Configuration
+
+- **Scope:** `profile`, `email`
+- **Prompt:** `select_account` (forces account selection)
+- **Strategy:** Passport.js Google OAuth 2.0
+
+### Google Callback
+
+**Endpoint:** `GET /api/auth/google/callback`
+
+**Internal Use Only** - This endpoint is called by Google after authentication.
+
+#### Success Flow
+
+1. Google redirects to callback with authorization code
+2. Passport.js exchanges code for user profile
+3. Server checks if user exists by email
+4. **If new user:**
+   - Creates user record with:
+     - Email from Google profile
+     - Full name from Google profile
+     - `role: 'coder'` (default)
+     - `otp_verified: true`
+     - `first_login: true`
+     - No password (OAuth only)
+5. **If existing user:**
+   - Updates `otp_verified: true` if not already set
+   - Updates profile information if changed
+6. Session is created with `req.session.userId`
+7. User is redirected based on `firstLogin`:
+   - First time: `/src/views/coder/onboarding.html`
+   - Returning: `/src/views/coder/dashboard.html`
+
+#### Error Handling
+
+If authentication fails:
+
+- **Redirect:** `/login?error=google_failed`
+- Client should detect error parameter and show message
+
+<CodeGroup>
+```javascript Frontend Error Detection
+const params = new URLSearchParams(window.location.search);
+const error = params.get('error');
+
+if (error === 'google_failed') {
+  showError('Google authentication failed. Please try again.');
+}
+```
+</CodeGroup>
+
+---
+
+## GitHub OAuth
+
+### Initiate GitHub Login
+
+**Endpoint:** `GET /api/auth/github`
+
+**Authentication:** None (public)
+
+Redirects the user to GitHub's OAuth authorization page.
+
+<CodeGroup>
+```html HTML Button
+<a href="/api/auth/github" class="btn btn-github">
+  <img src="/assets/github-icon.svg" alt="GitHub" />
+  Sign in with GitHub
+</a>
+```
+
+```javascript JavaScript Redirect
+window.location.href = '/api/auth/github';
+```
+</CodeGroup>
+
+### OAuth Configuration
+
+- **Scope:** `user:email` (access to user's email addresses)
+- **Strategy:** Passport.js GitHub OAuth 2.0
+
+### GitHub Callback
+
+**Endpoint:** `GET /api/auth/github/callback`
+
+**Internal Use Only** - This endpoint is called by GitHub after authentication.
+
+#### Success Flow
+
+1. GitHub redirects to callback with authorization code
+2. Passport.js exchanges code for user profile
+3. Server retrieves user's email (primary verified email)
+4. Checks if user exists by email
+5. **If new user:**
+   - Creates user record with:
+     - Email from GitHub profile
+     - Full name from GitHub profile
+     - `role: 'coder'` (default)
+     - `otp_verified: true`
+     - `first_login: true`
+     - No password (OAuth only)
+6. **If existing user:**
+   - Updates `otp_verified: true` if not already set
+   - Updates profile information if changed
+7. Session is created with `req.session.userId`
+8. User is redirected based on `firstLogin`:
+   - First time: `/src/views/coder/onboarding.html`
+   - Returning: `/src/views/coder/dashboard.html`
+
+#### Error Handling
+
+If authentication fails:
+
+- **Redirect:** `/login?error=github_failed`
+- Client should detect error parameter and show message
+
+<CodeGroup>
+```javascript Frontend Error Detection
+const params = new URLSearchParams(window.location.search);
+const error = params.get('error');
+
+if (error === 'github_failed') {
+  showError('GitHub authentication failed. Please try again.');
+} else if (error === 'auth_failed') {
+  showError('Authentication failed. Please try again.');
+} else if (error === 'session_error') {
+  showError('Session error. Please try again.');
+}
+```
+</CodeGroup>
+
+---
+
+## Implementation Details
+
+### Session Creation
+
+The `socialAuthSuccess` controller handles successful OAuth authentication:
+
+<CodeGroup>
+```javascript Controller Logic
+export const socialAuthSuccess = (req, res) => {
+  if (!req.user) {
+    return res.redirect(`${FRONTEND_URL}/src/views/auth/login.html?error=auth_failed`);
+  }
+
+  // Set session
+  req.session.userId = req.user.id;
+  
+  req.session.save((err) => {
+    if (err) {
+      return res.redirect(`${FRONTEND_URL}/src/views/auth/login.html?error=session_error`);
+    }
+
+    // Mark as OTP verified
+    supabase
+      .from('users')
+      .update({ otp_verified: true })
+      .eq('id', req.user.id);
+
+    // Redirect based on first login
+    const dest = req.user.first_login
+      ? `${FRONTEND_URL}/src/views/coder/onboarding.html`
+      : `${FRONTEND_URL}/src/views/coder/dashboard.html`;
+
+    return res.redirect(dest);
+  });
+};
+```
+</CodeGroup>
+
+### Auto-Verification
+
+OAuth users are automatically marked as verified:
+
+```javascript
+otp_verified: true  // Set during or after OAuth
+```
+
+This means:
+- No OTP email is sent
+- No verification step required
+- Can login immediately
+- If they later set a password, they can use email/password login
+
+---
+
+## Environment Configuration
+
+OAuth requires environment variables to be configured:
+
+### Google OAuth
+
+```env
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CALLBACK_URL=https://api.kairo.com/api/auth/google/callback
+```
+
+### GitHub OAuth
+
+```env
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+GITHUB_CALLBACK_URL=https://api.kairo.com/api/auth/github/callback
+```
+
+### Frontend URL
+
+```env
+FRONTEND_URL=https://kairo.com
+```
+
+<Warning>
+  Ensure callback URLs are registered in your Google Cloud Console and GitHub OAuth App settings. Mismatched URLs will cause authentication to fail.
+</Warning>
+
+---
+
+## Passport.js Strategy
+
+The platform uses Passport.js strategies for OAuth:
+
+### Google Strategy
+
+```javascript
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: process.env.GOOGLE_CALLBACK_URL
+}, async (accessToken, refreshToken, profile, done) => {
+  // Find or create user by email
+  // Return user object
+}));
+```
+
+### GitHub Strategy
+
+```javascript
+import { Strategy as GitHubStrategy } from 'passport-github2';
+
+passport.use(new GitHubStrategy({
+  clientID: process.env.GITHUB_CLIENT_ID,
+  clientSecret: process.env.GITHUB_CLIENT_SECRET,
+  callbackURL: process.env.GITHUB_CALLBACK_URL,
+  scope: ['user:email']
+}, async (accessToken, refreshToken, profile, done) => {
+  // Find or create user by email
+  // Return user object
+}));
+```
+
+---
+
+## Linking OAuth to Existing Accounts
+
+If a user with the same email exists:
+
+1. **Email/Password account exists:**
+   - OAuth login updates the existing account
+   - Sets `otp_verified: true`
+   - User can now login with either method
+
+2. **OAuth account exists:**
+   - Different provider with same email
+   - Updates existing account
+   - User can use either provider
+
+<Note>
+  Accounts are matched by email address. Ensure your OAuth providers return verified email addresses.
+</Note>
+
+---
+
+## Security Considerations
+
+### CSRF Protection
+
+Passport.js handles CSRF protection for OAuth flows using state parameters.
+
+### Scope Minimization
+
+- **Google:** Only requests `profile` and `email`
+- **GitHub:** Only requests `user:email`
+
+No additional permissions are requested unless needed.
+
+### Session Security
+
+- Sessions use secure, httpOnly cookies
+- Session IDs are regenerated after authentication
+- Sessions expire based on server configuration
+
+### Email Verification
+
+OAuth providers verify email addresses:
+
+- **Google:** Returns verified email from profile
+- **GitHub:** Uses primary verified email
+
+<Warning>
+  Only use verified emails from OAuth providers. Unverified emails could allow account takeover.
+</Warning>
+
+---
+
+## Error Codes
+
+| Error | Redirect | Description |
+|-------|----------|-------------|
+| `google_failed` | `/login?error=google_failed` | Google authentication failed |
+| `github_failed` | `/login?error=github_failed` | GitHub authentication failed |
+| `auth_failed` | `/login?error=auth_failed` | No user object returned |
+| `session_error` | `/login?error=session_error` | Session save failed |
+
+---
+
+## Testing OAuth Locally
+
+### Development Setup
+
+1. Register OAuth apps with development callback URLs:
+   - Google: `http://localhost:3000/api/auth/google/callback`
+   - GitHub: `http://localhost:3000/api/auth/github/callback`
+
+2. Add credentials to `.env`:
+   ```env
+   GOOGLE_CLIENT_ID=dev-client-id
+   GOOGLE_CLIENT_SECRET=dev-secret
+   GOOGLE_CALLBACK_URL=http://localhost:3000/api/auth/google/callback
+   
+   GITHUB_CLIENT_ID=dev-client-id
+   GITHUB_CLIENT_SECRET=dev-secret
+   GITHUB_CALLBACK_URL=http://localhost:3000/api/auth/github/callback
+   
+   FRONTEND_URL=http://localhost:3000
+   ```
+
+3. Use separate OAuth apps for development/production to avoid conflicts
+
+### Testing Flow
+
+1. Start local server
+2. Navigate to `/login`
+3. Click "Sign in with Google" or "Sign in with GitHub"
+4. Authenticate with provider
+5. Verify redirect to onboarding or dashboard
+6. Check session cookie is set
+7. Test `/api/auth/check` to verify authentication
+
+---
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Login" icon="right-to-bracket" href="/api/auth/login">
+    Email/password authentication
+  </Card>
+  <Card title="Register" icon="user-plus" href="/api/auth/register">
+    Create account with email
+  </Card>
+  <Card title="Check Auth" icon="shield-check" href="/api/auth/login#check-auth">
+    Verify session status
+  </Card>
+</CardGroup>

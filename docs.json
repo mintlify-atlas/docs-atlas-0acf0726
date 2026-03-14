@@ -1,122 +1,113 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Kairo Learning Platform",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#7C3AED",
+    "light": "#A78BFA",
+    "dark": "#5B21B6"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/cesarrios25/12345"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/cesarrios25/12345"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "architecture"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Features",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "features/ai-learning-paths",
+              "features/soft-skills-assessment",
+              "features/analytics-dashboard",
+              "features/risk-detection"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "For Students",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "students/onboarding",
+              "students/learning-paths",
+              "students/assignments",
+              "students/profile"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "For Team Leaders",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "team-leaders/dashboard",
+              "team-leaders/analytics",
+              "team-leaders/reports",
+              "team-leaders/interventions"
+            ]
+          },
+          {
+            "group": "Setup & Deployment",
+            "pages": [
+              "setup/installation",
+              "setup/environment-variables",
+              "setup/database-setup",
+              "setup/ai-configuration"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Authentication",
             "pages": [
-              "api-reference/introduction"
+              "api/auth/overview",
+              "api/auth/login",
+              "api/auth/register",
+              "api/auth/oauth"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "AI Services",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/ai/generate-plan",
+              "api/ai/generate-cards",
+              "api/ai/generate-report",
+              "api/ai/chat"
+            ]
+          },
+          {
+            "group": "Student Endpoints",
+            "pages": [
+              "api/coder/profile",
+              "api/coder/diagnostics",
+              "api/coder/assignments"
+            ]
+          },
+          {
+            "group": "Team Leader Endpoints",
+            "pages": [
+              "api/tl/dashboard",
+              "api/tl/students",
+              "api/tl/reports"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

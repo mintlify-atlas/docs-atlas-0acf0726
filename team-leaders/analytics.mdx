@@ -1,0 +1,295 @@
+---
+title: 'Analytics & Insights'
+description: 'Deep-dive into student performance metrics, risk detection, and AI-powered recommendations'
+icon: 'chart-simple'
+---
+
+## Overview
+
+Kairo's analytics engine combines Moodle progress data, soft skills assessments, and AI analysis to provide actionable insights for Team Leaders.
+
+<Note>
+  Analytics data is updated in real-time as students complete activities and assessments.
+</Note>
+
+---
+
+## Clan Metrics API
+
+Retrieve aggregated performance metrics for your entire clan.
+
+**Endpoint:** `GET /api/tl/metrics/clan/:clan_id`
+
+### Response Schema
+
+```json
+{
+  "clanId": "lambda",
+  "metrics": {
+    "averagePerformance": "78.50",
+    "highRiskCoders": 3,
+    "totalStudents": 25,
+    "riskPercentage": "12.00"
+  }
+}
+```
+
+### Metric Definitions
+
+<CardGroup cols={2}>
+  <Card title="Average Performance" icon="percent">
+    Mean Moodle score across all students in the clan (0-100)
+  </Card>
+  <Card title="High-Risk Count" icon="exclamation">
+    Number of students with **high** or **critical** risk flags
+  </Card>
+  <Card title="Total Students" icon="users">
+    All coders assigned to the clan
+  </Card>
+  <Card title="Risk Percentage" icon="chart-pie">
+    Proportion of students requiring intervention
+  </Card>
+</CardGroup>
+
+---
+
+## Risk Flag System
+
+### How Risk Levels Work
+
+Kairo's AI system automatically flags students based on multiple signals:
+
+<Steps>
+  <Step title="Performance Monitoring">
+    Tracks Moodle average scores, completion rates, and weekly progress
+  </Step>
+  <Step title="Soft Skills Analysis">
+    Identifies low scores in autonomy, time management, or problem-solving
+  </Step>
+  <Step title="Engagement Patterns">
+    Detects irregular login patterns or declining activity
+  </Step>
+  <Step title="AI Risk Classification">
+    Assigns risk level: **low**, **medium**, **high**, or **critical**
+  </Step>
+</Steps>
+
+### Risk Levels Explained
+
+| Level | Criteria | Recommended Action |
+|-------|----------|--------------------|
+| **Critical** | Score < 50 AND low soft skills | Immediate 1:1 intervention required |
+| **High** | Score < 60 OR 2+ failing soft skills | Schedule feedback session this week |
+| **Medium** | Score 60-70 OR 1 low soft skill | Monitor closely, provide resources |
+| **Low** | Score > 70 AND healthy soft skills | Continue standard support |
+
+<Accordion title="Backend Implementation">
+  Risk flags are stored in the `risk_flags` table with the following schema:
+
+  ```sql
+  CREATE TABLE risk_flags (
+    id SERIAL PRIMARY KEY,
+    coder_id INT REFERENCES users(id),
+    risk_level VARCHAR(20), -- 'low', 'medium', 'high', 'critical'
+    reason TEXT,
+    resolved BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+  ```
+
+  Query to fetch unresolved risks (tlControllers.js:224):
+  ```javascript
+  SELECT rf.*, u.full_name, u.email
+  FROM risk_flags rf
+  JOIN users u ON rf.coder_id = u.id
+  WHERE rf.resolved = false
+  ORDER BY
+    CASE rf.risk_level
+      WHEN 'critical' THEN 1
+      WHEN 'high' THEN 2
+      WHEN 'medium' THEN 3
+      ELSE 4
+    END
+  ```
+</Accordion>
+
+---
+
+## Student Performance Deep-Dive
+
+### Fetching Individual Student Data
+
+**Endpoint:** `GET /api/tl/coder/:id/details`
+
+### Response Example
+
+```json
+{
+  "coder": {
+    "id": 142,
+    "full_name": "María González",
+    "email": "maria.gonzalez@example.com",
+    "clan_id": "lambda",
+    "created_at": "2026-01-15T10:30:00Z",
+    "joined_date": "15 de enero de 2026",
+    "average_score": 82.5,
+    "current_week": 4,
+    "weeks_completed": 3,
+    "autonomy": 4.2,
+    "time_management": 3.8,
+    "problem_solving": 4.5,
+    "communication": 4.0,
+    "teamwork": 4.3,
+    "learning_style": "kinesthetic"
+  }
+}
+```
+
+### Key Indicators to Monitor
+
+<CardGroup cols={2}>
+  <Card title="Average Score Trends" icon="arrow-trend-up">
+    Compare current week score to previous weeks - look for declining patterns
+  </Card>
+  <Card title="Weeks Completed" icon="calendar-check">
+    Ensure students are progressing weekly - stagnation indicates disengagement
+  </Card>
+  <Card title="Soft Skills Balance" icon="scale-balanced">
+    Students need 3.0+ in all skills - identify specific areas for coaching
+  </Card>
+  <Card title="Learning Style Alignment" icon="graduation-cap">
+    Check if teaching methods match the student's diagnosed learning style
+  </Card>
+</CardGroup>
+
+---
+
+## Struggling Topics Analysis
+
+The system tracks which topics students are struggling with based on Moodle activity performance.
+
+### Data Source
+
+**Database Column:** `moodle_progress.struggling_topics` (array of topic IDs)
+
+### Identifying Common Struggles
+
+<Steps>
+  <Step title="Aggregate Topic IDs">
+    Collect struggling_topics arrays from all students in your clan
+  </Step>
+  <Step title="Count Frequency">
+    Determine which topics appear most often across students
+  </Step>
+  <Step title="Map to Topic Names">
+    Query the `topics` table to get human-readable names
+  </Step>
+  <Step title="Prioritize Interventions">
+    Focus group coaching sessions on the most common struggles
+  </Step>
+</Steps>
+
+<Accordion title="Example Query Pattern">
+  ```javascript
+  // Get struggling topics for all clan members
+  const { data: progress } = await supabase
+    .from('moodle_progress')
+    .select('struggling_topics')
+    .in('coder_id', coderIds);
+
+  // Flatten and count topic IDs
+  const topicCounts = {};
+  progress.forEach(p => {
+    (p.struggling_topics || []).forEach(topicId => {
+      topicCounts[topicId] = (topicCounts[topicId] || 0) + 1;
+    });
+  });
+
+  // Fetch topic names for top 5 most common
+  const topTopicIds = Object.keys(topicCounts)
+    .sort((a, b) => topicCounts[b] - topicCounts[a])
+    .slice(0, 5);
+
+  const { data: topics } = await supabase
+    .from('topics')
+    .select('id, name')
+    .in('id', topTopicIds);
+  ```
+</Accordion>
+
+---
+
+## AI-Powered Insights
+
+### Real-Time Risk Detection
+
+The AI system continuously monitors student behavior and flags anomalies:
+
+- **Sudden score drops** (>15 points in one week)
+- **Prolonged inactivity** (no login for 48+ hours)
+- **Low engagement** (minimal time in Moodle activities)
+- **Soft skill red flags** (autonomy or problem-solving < 2.5)
+
+### Predictive Analytics (Coming Soon)
+
+Upcoming features include:
+- **Dropout risk prediction** - Identify students likely to leave the program
+- **Performance forecasting** - Estimate final scores based on current trajectory
+- **Optimal intervention timing** - AI recommends when to reach out to each student
+
+---
+
+## Visualization Tips
+
+<CardGroup cols={1}>
+  <Card title="Track Week-Over-Week Changes" icon="chart-line">
+    Monitor if average clan score is improving or declining each week
+  </Card>
+  <Card title="Compare Risk Distribution" icon="chart-pie">
+    Benchmark your clan's risk percentage against other clans (if accessible)
+  </Card>
+  <Card title="Soft Skills Heatmap" icon="fire">
+    Identify which skills are weakest across your entire clan
+  </Card>
+  <Card title="Learning Style Optimization" icon="palette">
+    Adjust teaching materials to match the dominant learning style
+  </Card>
+</CardGroup>
+
+---
+
+## Best Practices for Data-Driven Leadership
+
+<Steps>
+  <Step title="Weekly Analytics Review">
+    Every Monday, pull clan metrics to set the week's intervention priorities
+  </Step>
+  <Step title="Identify Patterns">
+    Look for correlations - e.g., "students with low autonomy struggle with async modules"
+  </Step>
+  <Step title="Segment by Risk Level">
+    Create separate engagement strategies for critical, high, medium, and low-risk students
+  </Step>
+  <Step title="Track Intervention Impact">
+    After providing feedback, monitor if the student's scores/skills improve
+  </Step>
+  <Step title="Share Insights">
+    Communicate trends to other TLs and instructors for collaborative problem-solving
+  </Step>
+</Steps>
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Dashboard" icon="gauge-high" href="/team-leaders/dashboard">
+    Return to your main dashboard overview
+  </Card>
+  <Card title="Reports" icon="file-pdf" href="/team-leaders/reports">
+    Generate AI-powered clan performance reports
+  </Card>
+  <Card title="Interventions" icon="user-doctor" href="/team-leaders/interventions">
+    Learn how to act on analytics insights
+  </Card>
+</CardGroup>

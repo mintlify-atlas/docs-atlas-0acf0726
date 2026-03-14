@@ -1,0 +1,477 @@
+---
+title: Database Setup
+description: Initialize and configure the PostgreSQL database for Kairo
+---
+
+Kairo uses PostgreSQL as its primary database, with Supabase as the recommended hosting platform. This guide covers schema initialization, migrations, and database configuration.
+
+---
+
+## Database Overview
+
+The Kairo database stores:
+
+- **User profiles** (Coders and Team Leaders)
+- **Soft skills assessments** (autonomy, time management, communication, etc.)
+- **Academic progress** from Moodle
+- **AI-generated learning plans** (personalized 4-week study paths)
+- **Activity tracking** and evidence submissions
+- **Risk detection** and Team Leader feedback
+- **AI generation logs** for auditing
+
+### Database Engine
+
+- **PostgreSQL 14+** (Supabase recommended)
+- **Custom ENUM types** for data integrity
+- **JSONB columns** for flexible data storage
+- **Indexes** for optimized queries
+- **Views** for common analytics queries
+
+---
+
+## Supabase Setup
+
+<Steps>
+  <Step title="Create Supabase Project">
+    1. Go to [Supabase](https://supabase.com) and sign in
+    2. Click "New Project"
+    3. Choose a project name (e.g., "kairo-learning")
+    4. Set a strong database password (save this!)
+    5. Select a region close to your users
+    6. Click "Create new project"
+  </Step>
+
+  <Step title="Get Connection Details">
+    Once the project is ready:
+
+    1. Go to **Project Settings** → **Database**
+    2. Copy the connection string (you'll need this for `.env`)
+    3. Go to **Project Settings** → **API**
+    4. Copy:
+       - Project URL (`SUPABASE_URL`)
+       - anon/public key (`SUPABASE_ANON_KEY`)
+       - service_role key (`SUPABASE_SERVICE_KEY`)
+  </Step>
+
+  <Step title="Configure Network Access">
+    1. Go to **Project Settings** → **Database** → **Connection Pooling**
+    2. Enable connection pooling (recommended for production)
+    3. Add your IP to the allowlist if using direct connections
+  </Step>
+</Steps>
+
+<Warning>
+  Keep your database password and service_role key secure. Never commit them to version control.
+</Warning>
+
+---
+
+## Schema Initialization
+
+### Using Supabase SQL Editor
+
+The easiest way to initialize the database is through Supabase's SQL Editor:
+
+<Steps>
+  <Step title="Open SQL Editor">
+    In your Supabase project, navigate to **SQL Editor** in the left sidebar.
+  </Step>
+
+  <Step title="Load Schema File">
+    Copy the contents of `database/schema.sql` from your Kairo repository.
+  </Step>
+
+  <Step title="Execute Schema">
+    1. Paste the schema SQL into the editor
+    2. Click **Run** to execute
+    3. Wait for the "Success" message
+  </Step>
+</Steps>
+
+### Using psql Command Line
+
+Alternatively, use the PostgreSQL command-line tool:
+
+```bash
+# Connect to your database
+psql "postgresql://postgres.[PROJECT_REF]:[PASSWORD]@[HOST]:5432/postgres"
+
+# Run the schema file
+\i database/schema.sql
+```
+
+---
+
+## Database Schema
+
+### Core Tables
+
+#### 1. Users Table
+
+Stores both Coders and Team Leaders:
+
+```sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  full_name VARCHAR(150) NOT NULL,
+  role role_enum NOT NULL,              -- 'coder' or 'tl'
+  clan_id VARCHAR(50),                   -- 'Turing', 'Tesla', 'McCarthy'
+  first_login BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+<Note>
+  Clans (Turing, Tesla, McCarthy) are used to organize Coders into groups for Team Leader management.
+</Note>
+
+#### 2. Soft Skills Assessment
+
+Captures self-assessment data:
+
+```sql
+CREATE TABLE soft_skills_assessment (
+  id SERIAL PRIMARY KEY,
+  coder_id INT NOT NULL UNIQUE,
+  autonomy INT NOT NULL CHECK (autonomy BETWEEN 1 AND 5),
+  time_management INT NOT NULL CHECK (time_management BETWEEN 1 AND 5),
+  problem_solving INT NOT NULL CHECK (problem_solving BETWEEN 1 AND 5),
+  communication INT NOT NULL CHECK (communication BETWEEN 1 AND 5),
+  teamwork INT NOT NULL CHECK (teamwork BETWEEN 1 AND 5),
+  learning_style learning_style_enum NOT NULL,  -- visual, auditory, kinesthetic, mixed
+  raw_answers JSONB,
+  assessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (coder_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+#### 3. Modules & Topics
+
+Bootcamp curriculum structure:
+
+```sql
+CREATE TABLE modules (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  total_weeks INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE topics (
+  id SERIAL PRIMARY KEY,
+  module_id INT NOT NULL,
+  name VARCHAR(200) NOT NULL,
+  category VARCHAR(100),
+  FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
+);
+```
+
+#### 4. Moodle Progress
+
+Tracks academic performance:
+
+```sql
+CREATE TABLE moodle_progress (
+  id SERIAL PRIMARY KEY,
+  coder_id INT NOT NULL,
+  module_id INT NOT NULL,
+  current_week INT NOT NULL,
+  weeks_completed JSONB DEFAULT '[]'::jsonb,
+  struggling_topics TEXT[] DEFAULT '{}',
+  average_score DECIMAL(5,2) DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (coder_id, module_id),
+  FOREIGN KEY (coder_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
+);
+```
+
+#### 5. Complementary Plans
+
+AI-generated personalized learning plans:
+
+```sql
+CREATE TABLE complementary_plans (
+  id SERIAL PRIMARY KEY,
+  coder_id INT NOT NULL,
+  module_id INT NOT NULL,
+  plan_content JSONB NOT NULL,           -- The 6 cards structure
+  priority_level priority_level_enum DEFAULT 'medium',  -- 2 high, 2 medium, 2 low
+  soft_skills_snapshot JSONB,
+  moodle_status_snapshot JSONB,
+  is_active BOOLEAN DEFAULT TRUE,
+  generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (coder_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
+);
+```
+
+#### 6. Plan Activities
+
+Daily activities within learning plans:
+
+```sql
+CREATE TABLE plan_activities (
+  id SERIAL PRIMARY KEY,
+  plan_id INT NOT NULL,
+  day_number INT NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  estimated_time_minutes INT,
+  activity_type activity_type_enum,     -- guided, semi_guided, autonomous
+  skill_focus VARCHAR(100),
+  FOREIGN KEY (plan_id) REFERENCES complementary_plans(id) ON DELETE CASCADE
+);
+```
+
+#### 7. Risk Flags
+
+Automatic risk detection:
+
+```sql
+CREATE TABLE risk_flags (
+  id SERIAL PRIMARY KEY,
+  coder_id INT NOT NULL,
+  risk_level risk_level_enum NOT NULL,   -- low, medium, high
+  reason TEXT NOT NULL,
+  auto_detected BOOLEAN DEFAULT TRUE,
+  detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  resolved BOOLEAN DEFAULT FALSE,
+  resolved_at TIMESTAMP NULL,
+  FOREIGN KEY (coder_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+### Custom ENUM Types
+
+Kairo uses PostgreSQL ENUMs for data integrity:
+
+```sql
+CREATE TYPE role_enum AS ENUM ('coder', 'tl');
+CREATE TYPE learning_style_enum AS ENUM ('visual', 'auditory', 'kinesthetic', 'mixed');
+CREATE TYPE activity_type_enum AS ENUM ('guided', 'semi_guided', 'autonomous');
+CREATE TYPE feedback_type_enum AS ENUM ('weekly', 'activity', 'general');
+CREATE TYPE risk_level_enum AS ENUM ('low', 'medium', 'high');
+CREATE TYPE report_target_enum AS ENUM ('coder', 'clan', 'cohort');
+CREATE TYPE ai_agent_enum AS ENUM ('learning_plan', 'report_generator', 'risk_detector');
+CREATE TYPE priority_level_enum AS ENUM ('low', 'medium', 'high');
+```
+
+### Analytical Views
+
+#### Coder Dashboard View
+
+```sql
+CREATE VIEW v_coder_dashboard AS
+SELECT 
+  u.id,
+  u.full_name,
+  u.clan_id,
+  m.name AS module_name,
+  mp.average_score,
+  COUNT(DISTINCT pa.id) AS total_activities,
+  SUM(CASE WHEN ap.completed = TRUE THEN 1 ELSE 0 END) AS completed_activities,
+  ROUND((SUM(CASE WHEN ap.completed = TRUE THEN 1 ELSE 0 END)::NUMERIC / 
+         NULLIF(COUNT(DISTINCT pa.id), 0)) * 100, 2) AS completion_percentage
+FROM users u
+LEFT JOIN moodle_progress mp ON u.id = mp.coder_id
+LEFT JOIN modules m ON mp.module_id = m.id
+LEFT JOIN complementary_plans cp ON u.id = cp.coder_id AND cp.is_active = TRUE
+LEFT JOIN plan_activities pa ON cp.id = pa.plan_id
+LEFT JOIN activity_progress ap ON pa.id = ap.activity_id
+WHERE u.role = 'coder'
+GROUP BY u.id, u.full_name, u.clan_id, m.name, mp.average_score;
+```
+
+#### Risk Analysis View
+
+```sql
+CREATE VIEW v_coder_risk_analysis AS
+SELECT 
+  u.id,
+  u.full_name,
+  ssa.autonomy,
+  mp.average_score,
+  CASE 
+    WHEN ssa.autonomy <= 2 AND mp.average_score < 70 THEN 'high'::risk_level_enum
+    WHEN ssa.autonomy <= 2 OR mp.average_score < 70 THEN 'medium'::risk_level_enum
+    ELSE 'low'::risk_level_enum
+  END AS calculated_risk_level
+FROM users u
+LEFT JOIN soft_skills_assessment ssa ON u.id = ssa.coder_id
+LEFT JOIN moodle_progress mp ON u.id = mp.coder_id
+WHERE u.role = 'coder';
+```
+
+---
+
+## Seeding Initial Data
+
+### Create Sample Modules
+
+```sql
+INSERT INTO modules (name, description, total_weeks) VALUES
+('Frontend Development', 'HTML, CSS, JavaScript, React fundamentals', 12),
+('Backend Development', 'Node.js, Express, REST APIs, databases', 12),
+('Database Design', 'PostgreSQL, MongoDB, data modeling', 8),
+('DevOps & Deployment', 'Docker, CI/CD, cloud platforms', 6);
+```
+
+### Create Sample Topics
+
+```sql
+INSERT INTO topics (module_id, name, category) VALUES
+(1, 'HTML Semantic Tags', 'HTML'),
+(1, 'CSS Flexbox & Grid', 'CSS'),
+(1, 'JavaScript Async/Await', 'JavaScript'),
+(2, 'Express Middleware', 'Backend'),
+(2, 'RESTful API Design', 'Backend'),
+(3, 'Database Normalization', 'Database'),
+(4, 'Docker Containers', 'DevOps');
+```
+
+### Create Test User
+
+```sql
+INSERT INTO users (email, password, full_name, role, clan_id) VALUES
+('coder@kairo.dev', '$2b$10$...', 'Test Coder', 'coder', 'Turing'),
+('tl@kairo.dev', '$2b$10$...', 'Test Team Leader', 'tl', NULL);
+```
+
+<Note>
+  Use bcrypt to hash passwords before inserting. Never store plain text passwords.
+</Note>
+
+---
+
+## Database Migrations
+
+For production deployments, use a migration tool to manage schema changes:
+
+### Using Supabase Migrations
+
+```bash
+# Install Supabase CLI
+npm install -g supabase
+
+# Initialize migrations
+supabase init
+
+# Create a new migration
+supabase migration new initial_schema
+
+# Apply migrations
+supabase db push
+```
+
+### Manual Migration Example
+
+```sql
+-- migration_001_add_learning_paths.sql
+ALTER TABLE complementary_plans 
+ADD COLUMN learning_path_version INT DEFAULT 1;
+
+CREATE INDEX idx_plans_version ON complementary_plans(learning_path_version);
+```
+
+---
+
+## Database Maintenance
+
+### Backup Strategy
+
+<Steps>
+  <Step title="Enable Automated Backups">
+    Supabase Pro plans include automatic daily backups. Enable in Project Settings → Database → Backup.
+  </Step>
+
+  <Step title="Manual Backup">
+    ```bash
+    pg_dump "postgresql://postgres.[PROJECT]:[PASS]@[HOST]:5432/postgres" > backup.sql
+    ```
+  </Step>
+
+  <Step title="Restore from Backup">
+    ```bash
+    psql "postgresql://..." < backup.sql
+    ```
+  </Step>
+</Steps>
+
+### Query Optimization
+
+Monitor slow queries in Supabase:
+
+1. Go to **Database** → **Query Performance**
+2. Identify slow queries
+3. Add indexes as needed:
+
+```sql
+CREATE INDEX idx_activity_progress_completed ON activity_progress(coder_id, completed);
+CREATE INDEX idx_risk_flags_unresolved ON risk_flags(coder_id, resolved) WHERE resolved = FALSE;
+```
+
+### Clean Up Old Data
+
+```sql
+-- Archive old AI generation logs (older than 90 days)
+DELETE FROM ai_generation_log 
+WHERE generated_at < NOW() - INTERVAL '90 days';
+
+-- Remove resolved risk flags older than 30 days
+DELETE FROM risk_flags 
+WHERE resolved = TRUE AND resolved_at < NOW() - INTERVAL '30 days';
+```
+
+---
+
+## Troubleshooting
+
+### Connection Issues
+
+**Error:** "Connection refused"
+
+- Check that your IP is allowlisted in Supabase
+- Verify connection string format
+- Ensure database is active (not paused)
+
+**Error:** "Authentication failed"
+
+- Verify database password
+- Check that user has correct permissions
+- Use `postgres.` prefix for Supabase user
+
+### Schema Errors
+
+**Error:** "Type already exists"
+
+- Run the DROP TYPE commands at the top of schema.sql
+- Or comment out the CREATE TYPE statements
+
+**Error:** "Foreign key violation"
+
+- Ensure parent records exist before inserting child records
+- Follow the table creation order in schema.sql
+
+### Performance Issues
+
+- Add indexes for frequently queried columns
+- Use connection pooling (Supavisor)
+- Enable query caching in Supabase
+- Consider read replicas for heavy read workloads
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI Configuration" icon="brain" href="/setup/ai-configuration">
+    Configure Groq and AI models
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/overview">
+    Explore the Kairo API endpoints
+  </Card>
+</CardGroup>
