@@ -1,0 +1,123 @@
+{
+  "projectType": "saas",
+  "projectName": "Kairo Learning Platform",
+  "projectDescription": "AI-powered personalized learning platform that adapts to individual student needs and provides analytics for Team Leaders",
+  "theme": "palm",
+  "primaryColor": "#7C3AED",
+  "lightColor": "#A78BFA",
+  "darkColor": "#5B21B6",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/ai-learning-paths",
+              "features/soft-skills-assessment",
+              "features/analytics-dashboard",
+              "features/risk-detection"
+            ]
+          },
+          {
+            "group": "For Students",
+            "pages": [
+              "students/onboarding",
+              "students/learning-paths",
+              "students/assignments",
+              "students/profile"
+            ]
+          },
+          {
+            "group": "For Team Leaders",
+            "pages": [
+              "team-leaders/dashboard",
+              "team-leaders/analytics",
+              "team-leaders/reports",
+              "team-leaders/interventions"
+            ]
+          },
+          {
+            "group": "Setup & Deployment",
+            "pages": [
+              "setup/installation",
+              "setup/environment-variables",
+              "setup/database-setup",
+              "setup/ai-configuration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/overview",
+              "api/auth/login",
+              "api/auth/register",
+              "api/auth/oauth"
+            ]
+          },
+          {
+            "group": "AI Services",
+            "pages": [
+              "api/ai/generate-plan",
+              "api/ai/generate-cards",
+              "api/ai/generate-report",
+              "api/ai/chat"
+            ]
+          },
+          {
+            "group": "Student Endpoints",
+            "pages": [
+              "api/coder/profile",
+              "api/coder/diagnostics",
+              "api/coder/assignments"
+            ]
+          },
+          {
+            "group": "Team Leader Endpoints",
+            "pages": [
+              "api/tl/dashboard",
+              "api/tl/students",
+              "api/tl/reports"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AI-powered personalized 4-week learning plans",
+    "Soft skills assessment and integration",
+    "Real-time risk detection and alerts",
+    "Team Leader analytics dashboard",
+    "Hybrid Node.js + Python/FastAPI architecture",
+    "Local LLM integration (Qwen2.5-7B-Instruct)",
+    "PostgreSQL database with Supabase",
+    "Multi-page responsive frontend"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/login",
+    "POST /api/auth/register",
+    "POST /api/ai/generate-plan",
+    "POST /api/ai/generate-focus-cards",
+    "POST /api/ai/generate-report",
+    "POST /api/chat/ask",
+    "GET /api/coder/profile",
+    "POST /api/diagnostics/soft-skills",
+    "GET /api/tl/dashboard",
+    "POST /api/tl/reports"
+  ]
+}
